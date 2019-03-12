@@ -4,18 +4,85 @@ body{
 	margin: 0;
 	overflow: hidden;
 }
-
+*{
+	box-sizing: border-box;
+}
 path{
 	transition: .4s ease-in-out;
 	transform: translateZ(0);
 }
-#test{
+.dragging path{
+	transition: .1s ease-in-out;
+}
+.range-wrapper{
 	position: absolute;
-	z-index: 2;
+	top: 0;
+	right: 50%;
 }
 
-#draw-target{
-	display: block;
+.chart{
+	position: relative;
 	margin: 0 auto;
+	width: 100%;
+	max-width: 700px;
+	padding: 10px;
+}
+.chart__window{
+	position: relative;
+	width: 100%;
+	height: 500px;
+}
+.chart__range{
+	height: 150px;
+	margin: 10px 0;
+	position: relative;
+}
+.chart__controls{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	top: 0;
+	left: 0;
+	overflow: hidden;
+}
+.chart__control-start{
+	width: 10px;
+	height: 100%;
+	position: absolute;
+	left: 0;
+	top: 0;
+	background-color: #000;
+	z-index: 1;
+}
+.chart__control-start:before{
+	content: '';
+	width: 100vw;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	right: 100%;
+	background-color: rgba(51, 163, 218, .5);
+}
+.chart__control-end{
+	width: 10px;
+	height: 100%;
+	position: absolute;
+	right: 0;
+	top: 0;
+	background-color: #000;
+}
+.chart__control-end:before{
+	content: '';
+	width: 100vw;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 100%;
+	background-color: rgba(51, 163, 218, .5);
+}
+svg{
+	width: 100%;
+	height: 100%;
+	position: absolute;
 	background-color: #fff;
 }

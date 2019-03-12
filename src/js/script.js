@@ -13,6 +13,12 @@ class Chart {
 		this.end = this.x[this.x.length - 1];
 
 		this.parseData(data);
+
+		this.setRange();
+	}
+
+	setRange(){
+
 	}
 
 	get x(){
@@ -82,6 +88,10 @@ class Chart {
 		let min = 99999999999999999;
 		let max = 0;
 
+		if (this.activeLinesCount() === 0){
+			return {min: 0, max: 100};
+		}
+
 		for (let coordIndex in this.x){
 			if (this.x[coordIndex] >= start && this.x[coordIndex] <= end){
 				for (let lineIndex in this.lines){
@@ -95,22 +105,37 @@ class Chart {
 		}
 
 		return {min, max};
+	}
+
+	activeLinesCount(){
+
+		let count = 0;
+
+		for (let lineIndex in this.lines){
+			count += this.lines[lineIndex].active ? 1 : 0;
+		}
+
+		return count;
 
 	}
 
-	drawLines(target, start = this.start, end = this.end){
+	drawLines(target_id, start = this.start, end = this.end){
+
+		const target = document.getElementById(target_id);
+
+		const windowCoeff = target.clientHeight / target.clientWidth;
+
+		target.setAttribute('viewBox', `0 0 100 ${100 * windowCoeff}`);
 
 		// Disable zoom less than 100%
 		start = this.start > start ? this.start : start;
 		end = this.end < end ? this.end : end;
 
-		const chartWidth = end - start;
+		const chartWidth = (end - start);
 
 		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
 
-		chartValuesMinMax.min = chartValuesMinMax.min > 0 ? 0 : chartValuesMinMax.min;
-
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
+		const chartHeight = (chartValuesMinMax.max - chartValuesMinMax.min);
 
 		for (let lineId in this.lines){
 
@@ -123,22 +148,22 @@ class Chart {
 				let x = this.x[coordIndex];
 				let y = yCoords[coordIndex];
 				x = (1 -((end - x) / chartWidth)) * 100;
-				y = (((chartHeight - y) / chartHeight) * 80) + 10;
+				y = ((((chartHeight - y) / chartHeight) * 80) + 15) * windowCoeff;
 				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
 			}
 
 			let path = document.createElementNS('http://www.w3.org/2000/svg','path');
-			const line = document.getElementById(`line-${lineId}`);
+			const line = document.getElementById(`${target_id}-line-${lineId}`);
 
 
 			if (line !== null){
 				path = line;
 			}else{
-				path.setAttributeNS(null, 'id', `line-${lineId}`);
+				path.setAttributeNS(null, 'id', `${target_id}-line-${lineId}`);
 				path.setAttributeNS(null, 'stroke', this.lines[lineId].color);
 				path.setAttributeNS(null, 'stroke-width', .2);
 				path.setAttributeNS(null, 'fill', 'none');
-				document.getElementById(target).appendChild(path);
+				target.appendChild(path);
 			}
 			path.setAttributeNS(null, 'd', pathLine);
 		}
@@ -147,9 +172,10 @@ class Chart {
 
 
 
-const chart = new Chart(chartData[3]);
+const chart = new Chart(chartData[0]);
 
 chart.drawLines('draw-target');
+chart.drawLines('draw-range');
 
 document.getElementById('disable1').addEventListener('click', (event) => {
 
@@ -167,10 +193,10 @@ document.getElementById('disable1').addEventListener('click', (event) => {
 		that.innerHTML = 'disable1';
 	}
 	chart.drawLines('draw-target');
+
 });
 document.getElementById('disable2').addEventListener('click', (event) => {
 	const that = event.target;
-
 	if (that.dataset.show === 'false'){
 		chart._lines.y1.active = false;
 		document.getElementById('line-y1').style.opacity = 0;
@@ -185,4 +211,53 @@ document.getElementById('disable2').addEventListener('click', (event) => {
 	chart.drawLines('draw-target');
 });
 
+const chartStart = document.getElementById('chart-start');
+const chartEnd = document.getElementById('chart-end');
+const chartControls = document.getElementById('chart-controls');
 
+let chartStartClicked = false;
+let chartEndClicked = false;
+let startClickedPosition, startLeftOffset, endClickedPosition, endRightOffset, startPosition, endPosition;
+
+
+
+chartStart.addEventListener('mousedown', (event) => {
+	startClickedPosition = event.clientX;
+	startLeftOffset = chartStart.getBoundingClientRect().left - chartControls.getBoundingClientRect().left;
+	endPosition = chartEnd.getBoundingClientRect().left - chartControls.getBoundingClientRect().left - 100;
+	chartStartClicked = true;
+	document.getElementById('draw-target').classList.add('dragging');
+});
+chartEnd.addEventListener('mousedown', (event) => {
+	endClickedPosition = event.clientX;
+	endRightOffset = chartControls.getBoundingClientRect().right - chartEnd.getBoundingClientRect().right;
+	startPosition = chartControls.getBoundingClientRect().right - chartStart.getBoundingClientRect().right - 100;
+	chartEndClicked = true;
+	document.getElementById('draw-target').classList.add('dragging');
+});
+
+document.addEventListener('mousemove', (event) => {
+	if (chartStartClicked){
+		let offsetLeft = event.clientX - startClickedPosition;
+		let left = startLeftOffset + offsetLeft;
+		left = left >= 0 ? left : 0;
+		left = left <= endPosition ? left : endPosition;
+		chartStart.style.left = `${left}px`;
+		chartStart.dataset.value = (chart.start + ((left / chartControls.clientWidth) * (chart.end - chart.start)));
+		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
+	}
+	if (chartEndClicked){
+		let offsetRight = 1 - (event.clientX - endClickedPosition);
+		let right = endRightOffset + offsetRight;
+		right = right >= 0 ? right : 0;
+		right = right <= startPosition ? right : startPosition;
+		chartEnd.style.right = `${right}px`;
+		chartEnd.dataset.value = (chart.end - ((right / chartControls.clientWidth) * (chart.end - chart.start)));
+		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
+	}
+});
+document.addEventListener('mouseup', () => {
+	chartStartClicked = false;
+	chartEndClicked = false;
+	document.getElementById('draw-target').classList.remove('dragging')
+});
