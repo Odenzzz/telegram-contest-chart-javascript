@@ -124,13 +124,15 @@ class Chart {
 
 		this.end = this.x[this.x.length - 1];
 
+		this.viewBoxWidth = 100;
+
 		this.parseData(data);
 
-		this.controls = new ChartControls({
+		this.layout = new ChartTemplate({
 			chart: this
 		});
 
-		this.controls.init();
+		this.layout.init();
 
 	}
 
@@ -190,12 +192,13 @@ class Chart {
 	}
 
 	getChartMinMaxValueInRange(start, end){
+
 		let min = 99999999999999999;
 		let max = 0;
 
 		if (this.getActiveLinesCount() === 0){
 			// Prevent the not smooth animation on disable last chart
-			return {min: 0, max: 100};
+			return {min: 0, max: this.chart.viewBoxWidth};
 		}
 
 		for (let coordIndex in this.x){
@@ -207,9 +210,15 @@ class Chart {
 						max = line.coords[coordIndex] > max ? line.coords[coordIndex] : max;
 					}
 				}
+			}else{
+				for (let lineIndex in this.lines){
+					const line = this.lines[lineIndex];
+					if (line.active){
+						min = line.coords[coordIndex] < min ? line.coords[coordIndex] : min;
+					}
+				}
 			}
 		}
-
 		return {min, max};
 	}
 
@@ -225,20 +234,23 @@ class Chart {
 
 	}
 
-	drawLines(target, start = this.start, end = this.end){
+	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth}){
+
+		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
+		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
 
 		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
 
-		target.setAttribute('viewBox', `0 0 100 ${100 * aspectRatioCoeff}`);
+
 
 		// Disable zoom less than 100%
 		start = this.start > start ? this.start : start;
 		end = this.end < end ? this.end : end;
-
 		const chartWidth = (end - start);
 
 		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
-		const chartHeight = (chartValuesMinMax.max - chartValuesMinMax.min);
+		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
+
 		for (let lineId in this.lines){
 
 			let pathLine = '';
@@ -249,32 +261,30 @@ class Chart {
 				coordIndex = Number(coordIndex);
 				let x = this.x[coordIndex];
 				let y = yCoords[coordIndex];
-				x = (1 - ((end - x) / chartWidth)) * 100;
-				y = ((((Math.abs(chartHeight - y)) / chartHeight) * 80) + 15) * aspectRatioCoeff;
+				x = (1 - ((end - x) / chartWidth)) * this.viewBoxWidth;
+				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * aspectRatioCoeff;
 				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
 			}
 
-			let path = document.createElementNS('http://www.w3.org/2000/svg','path');
-			const line = document.getElementById(`line-${lineId}`);
+			let path = target.querySelector(`.line-${lineId}`);
 
-
-			if (line !== null){
-				path = line;
-			}else{
+			if (path === null){
+				// Create the chart path if it not exists
+				path = document.createElementNS('http://www.w3.org/2000/svg','path');
+				target.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth * aspectRatioCoeff}`);
 				path.setAttributeNS(null, 'class', `line-${lineId}`);
 				path.setAttributeNS(null, 'stroke', this.lines[lineId].color);
-				path.setAttributeNS(null, 'stroke-width', .2);
+				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
 				path.setAttributeNS(null, 'fill', 'none');
 				target.appendChild(path);
 			}
 			path.setAttributeNS(null, 'd', pathLine);
-
 		}
 	}
 }
 
 
-class ChartControls {
+class ChartTemplate {
 
 	constructor({chart, appendTarget = 'body'}){
 
@@ -289,14 +299,17 @@ class ChartControls {
 		this.layoutContorls = {};
 
 		this.controlsState = {
-			startClicked: false,
-			endClicked: false,
-			startPosition: 0,
-			endPosition: 0,
+			startClicked        : false,
+			endClicked          : false,
+			mapRangeClicked     : false,
+			chartMove           : false,
+			chartReverceMove    : false,
+			startPosition       : 0,
+			endPosition         : this.chart.viewBoxWidth,
+			clickInitialPosition: 0
 		};
 
 		this.chartWindow, this.mapWindow;
-
 	}
 
 	get chartTemplate(){
@@ -317,11 +330,9 @@ class ChartControls {
 
 		this.layout = this.initLayout();
 
-		this.chartWidth = this.initChartWindow();
+		this.chartWindow = this.initChartWindow();
+
 		this.map = this.initMap();
-
-
-		this.layoutContorls.endChartSlider = this.layout.querySelector('.chart__control-end');
 
 	}
 
@@ -329,54 +340,144 @@ class ChartControls {
 
 		const map = this.layout.querySelector('.chart__map svg');
 
-		this.chart.drawLines(map);
+		this.chart.drawLines({target: map});
 
-		this.layoutContorls.startChartSlider = this.initChartStartSlider(map);
+		this.layoutContorls.viewRange = this.createMapViewRange(map);
+
+		this.layoutContorls.startChartSlider = this.createSlider(map);
+		this.layoutContorls.startChartSlider.setAttributeNS(null, 'x', this.controlsState.startPosition);
+		this.layoutContorls.startChartSlider.addEventListener('mousedown', () => this.controlsState.startClicked = true);
+
+		this.layoutContorls.endChartSlider = this.createSlider(map);
+		this.layoutContorls.endChartSlider.setAttributeNS(null, 'x', this.controlsState.endPosition - this.endChartWidth);
+		this.layoutContorls.endChartSlider.addEventListener('mousedown', () => this.controlsState.endClicked = true);
+
+		this.changeMapViewSize();
+
+		this.clearConsrolState();
 
 		return map;
 	}
 
-	initChartStartSlider(map){
+	createSlider(map){
+		const chartSlider = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		chartSlider.setAttributeNS(null, 'y', 0);
+		chartSlider.setAttributeNS(null, 'width', map.viewBox.baseVal.width * 0.02);
+		chartSlider.setAttributeNS(null, 'height', map.viewBox.baseVal.height);
+		chartSlider.setAttributeNS(null, 'fill', 'rgba(0,0,0,0)');
+		chartSlider.addEventListener('mousedown', event => {
+			this.controlsState.clickInitialPosition = event.clientX;
+			this.controlsState.chartMove            = true;
+		});
 
-		const startChartSlider = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-
-		startChartSlider.setAttributeNS(null, 'x', 0);
-		startChartSlider.setAttributeNS(null, 'y', 0);
-		startChartSlider.setAttributeNS(null, 'width', map.viewBox.baseVal.height * 0.07);
-		startChartSlider.setAttributeNS(null, 'height', map.viewBox.baseVal.height);
-		startChartSlider.setAttributeNS(null, 'fill', 'rgba(0,0,0,0.5)');
-
-		startChartSlider.addEventListener('mousedown', event => this.controlsState.startClicked = true);
-
-		map.appendChild(startChartSlider);
-
-		return startChartSlider;
-
+		map.appendChild(chartSlider);
+		return chartSlider;
 	}
 
-	moveSliderOnClick(){
+	createMapViewRange(map){
+		const viewRange = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
 
+		viewRange.setAttributeNS(null, 'y', 0 - map.viewBox.baseVal.height * 0.05);
+		viewRange.setAttributeNS(null, 'x', 0);
+		viewRange.setAttributeNS(null, 'width', 0);
+		viewRange.setAttributeNS(null, 'height', map.viewBox.baseVal.height * 1.1);
+		viewRange.setAttributeNS(null, 'fill', 'rgba(0,0,0,0)');
+		viewRange.setAttributeNS(null, 'stroke', 'rgba(0,0,0,0.5)');
+		viewRange.setAttributeNS(null, 'stroke-width', this.chart.viewBoxWidth * 0.02);
+		viewRange.addEventListener('mousedown', event => {
+			this.controlsState.clickInitialPosition = event.clientX;
+			this.controlsState.mapRangeClicked      = true;
+			this.controlsState.chartMove            = true;
+			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+		});
+
+		map.appendChild(viewRange);
+		return viewRange;
 	}
-
 
 	initChartWindow(){
 
 		const chartWindow = this.layout.querySelector('.chart__window svg');
 
-		this.chart.drawLines(chartWindow);
+		chartWindow.addEventListener('mousedown', event => {
+			this.controlsState.clickInitialPosition = event.clientX;
+			this.controlsState.mapRangeClicked      = true;
+			this.controlsState.chartMove            = true;
+			this.controlsState.chartReverceMove     = true;
+			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+		});
+
+		this.chart.drawLines({target: chartWindow});
 
 		return chartWindow;
 
 	}
 
+	get startChartValue(){
+		return this.layoutContorls.startChartSlider.x.baseVal.value;
+	}
+	get startChartWidth(){
+		return this.layoutContorls.startChartSlider.width.baseVal.value;
+	}
+
+
+	get endChartValue(){
+		return this.layoutContorls.endChartSlider.x.baseVal.value;
+	}
+	get endChartWidth(){
+		return this.layoutContorls.endChartSlider.width.baseVal.value;
+	}
+
+	get viewRangeWidth(){
+		return (this.endChartValue - this.startChartValue) ;
+	}
 
 	initControlButtons(){
 
 	}
 
+	changeStartPosition(value){
+
+		const maxOfStartPosition = this.endChartValue - this.controlsState.minMapViewRange;
+
+		value = value > 0 ? value : 0;
+		value = value < maxOfStartPosition ? value : maxOfStartPosition;
+
+		this.layoutContorls.startChartSlider.x.baseVal.value = value;
+
+		this.changeMapViewSize();
+	}
+
+	changeEndPosition(value){
+
+		const minOfEndPosition = this.startChartValue + this.controlsState.minMapViewRange;
+
+		value = value > minOfEndPosition ? value : minOfEndPosition;
+		value = value + this.endChartWidth < this.chart.viewBoxWidth ? value : this.chart.viewBoxWidth - this.endChartWidth;
+
+		this.layoutContorls.endChartSlider.x.baseVal.value = value;
+
+		this.changeMapViewSize();
+
+	}
+
+	changeMapViewSize(){
+		const left = this.startChartValue + (this.chart.viewBoxWidth * 0.01);
+		const width = this.viewRangeWidth;
+		this.layoutContorls.viewRange.setAttributeNS(null, 'x', left);
+		this.layoutContorls.viewRange.setAttributeNS(null, 'width', width);
+	}
+
+
 	clearConsrolState(){
-		this.controlsState.startClicked = false;
-		this.controlsState.endClicked   = false;
+		this.controlsState.startPosition    = this.startChartValue;
+		this.controlsState.endPosition      = this.endChartValue;
+		this.controlsState.minMapViewRange  = this.chart.viewBoxWidth * 0.15;
+		this.controlsState.startClicked     = false;
+		this.controlsState.endClicked       = false;
+		this.controlsState.chartReverceMove = false;
+		this.controlsState.chartMove        = false;
+		this.controlsState.mapRangeClicked  = false;
 	}
 
 	initLayout(){
@@ -387,14 +488,41 @@ class ChartControls {
 
 		layout.innerHTML = this.chartTemplate;
 
-		layout.addEventListener('mousemove', (event) => {
-			if (this.controlsState.startClicked){
-				console.log(event);
+		document.addEventListener('mousemove', (event) => {
+
+			if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
+				let valueStart;
+				if (this.controlsState.chartReverceMove){
+					valueStart = this.controlsState.startPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth;
+				}else{
+					valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth;
+				}
+				this.changeStartPosition(valueStart);
+			}
+			if (this.controlsState.endClicked || this.controlsState.mapRangeClicked){
+				let valueEnd;
+				if (this.controlsState.chartReverceMove){
+					valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth);
+				}else{
+					valueEnd = (this.controlsState.endPosition + ( 0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
+				}
+				this.changeEndPosition(valueEnd);
+			}
+
+			if(this.controlsState.chartMove){
+				const startPercent = this.startChartValue;
+				const endPercent = this.endChartValue + this.endChartWidth;
+				const target = this.layout.querySelector('.chart__window svg');
+
+				target.classList.add('dragging');
+				this.chart.drawLines({target, startPercent, endPercent});
+				setTimeout(() => {
+					target.classList.remove('dragging');
+				}, 0);
 			}
 		});
 
-		layout.addEventListener('mouseup', () => this.clearConsrolState());
-		layout.addEventListener('mouseleave', () => this.clearConsrolState());
+		document.addEventListener('mouseup', () => this.clearConsrolState());
 
 		this.appendTarget.append(layout);
 
@@ -409,126 +537,6 @@ new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[0]);
 // new Chart(chartData[2]);
 // new Chart(chartData[3]);
 // new Chart(chartData[4]);
-
-// chart.drawLines('draw-target');
-
-// document.getElementById('disable1').addEventListener('click', (event) => {
-// 	const that = event.target;
-
-// 	if (that.dataset.show === 'false'){
-// 		chart.lines.y0.active = false;
-// 		document.getElementById('line-y0').style.opacity = 0;
-// 		that.dataset.show = 'true';
-// 		that.innerHTML = 'enable1';
-// 	}else{
-// 		chart.lines.y0.active = true;
-// 		document.getElementById('line-y0').style.opacity = 1;
-// 		that.dataset.show = 'false';
-// 		that.innerHTML = 'disable1';
-// 	}
-// 	chart.drawLines('draw-target');
-// });
-// document.getElementById('disable2').addEventListener('click', (event) => {
-// 	const that = event.target;
-// 	if (that.dataset.show === 'false'){
-// 		chart.lines.y1.active = false;
-// 		document.getElementById('line-y1').style.opacity = 0;
-// 		that.dataset.show = 'true';
-// 		that.innerHTML = 'enable2';
-// 	}else{
-// 		chart.lines.y1.active = true;
-// 		document.getElementById('line-y1').style.opacity = 1;
-// 		that.dataset.show = 'false';
-// 		that.innerHTML = 'disable2';
-// 	}
-// 	chart.drawLines('draw-target');
-// });
-
-// const chartStart    = document.getElementById('chart-start');
-// const chartEnd      = document.getElementById('chart-end');
-// const chartControls = document.getElementById('chart-controls');
-
-// let chartStartClicked = false;
-// let chartEndClicked = false;
-// let startClickedPosition, startLeftOffset, endClickedPosition, endRightOffset, startPosition, endPosition;
-
-
-
-// chartStart.addEventListener('mousedown', (event) => {
-// 	startClickedPosition = event.clientX;
-// 	startLeftOffset = chartStart.getBoundingClientRect().left - chartControls.getBoundingClientRect().left;
-// 	endPosition = chartEnd.getBoundingClientRect().left - chartControls.getBoundingClientRect().left - 100;
-// 	chartStartClicked = true;
-// 	document.getElementById('draw-target').classList.add('dragging');
-// });
-// chartEnd.addEventListener('mousedown', (event) => {
-// 	endClickedPosition = event.clientX;
-// 	endRightOffset = chartControls.getBoundingClientRect().right - chartEnd.getBoundingClientRect().right;
-// 	startPosition = chartControls.getBoundingClientRect().right - chartStart.getBoundingClientRect().right - 100;
-// 	chartEndClicked = true;
-// 	document.getElementById('draw-target').classList.add('dragging');
-// });
-// chartStart.addEventListener('touchstart', (event) => {
-// 	startClickedPosition = event.clientX;
-// 	startLeftOffset = chartStart.getBoundingClientRect().left - chartControls.getBoundingClientRect().left;
-// 	endPosition = chartEnd.getBoundingClientRect().left - chartControls.getBoundingClientRect().left - 100;
-// 	chartStartClicked = true;
-// 	document.getElementById('draw-target').classList.add('dragging');
-// 	console.log(123)
-// });
-// chartEnd.addEventListener('touchstart', (event) => {
-// 	endClickedPosition = event.clientX;
-// 	endRightOffset = chartControls.getBoundingClientRect().right - chartEnd.getBoundingClientRect().right;
-// 	startPosition = chartControls.getBoundingClientRect().right - chartStart.getBoundingClientRect().right - 100;
-// 	chartEndClicked = true;
-// 	document.getElementById('draw-target').classList.add('dragging');
-// 	console.log(123)
-// });
-// document.addEventListener('mousemove', (event) => {
-// 	if (chartStartClicked){
-// 		let offsetLeft = event.clientX - startClickedPosition;
-// 		let left = startLeftOffset + offsetLeft;
-// 		left = left >= 0 ? left : 0;
-// 		left = left <= endPosition ? left : endPosition;
-// 		chartStart.style.left = `${left}px`;
-// 		chartStart.dataset.value = (chart.start + (((left + 10) / chartControls.clientWidth) * (chart.end - chart.start)));
-// 		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
-// 	}
-// 	if (chartEndClicked){
-// 		let offsetRight = 1 - (event.clientX - endClickedPosition);
-// 		let right = endRightOffset + offsetRight;
-// 		right = right >= 0 ? right : 0;
-// 		right = right <= startPosition ? right : startPosition;
-// 		chartEnd.style.right = `${right}px`;
-// 		chartEnd.dataset.value = (chart.end - (((right + 10) / chartControls.clientWidth) * (chart.end - chart.start)));
-// 		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
-// 	}
-// });
-// document.addEventListener('touchmove', (event) => {
-// 	if (chartStartClicked){
-// 		let offsetLeft = event.clientX - startClickedPosition;
-// 		let left = startLeftOffset + offsetLeft;
-// 		left = left >= 0 ? left : 0;
-// 		left = left <= endPosition ? left : endPosition;
-// 		chartStart.style.left = `${left}px`;
-// 		chartStart.dataset.value = (chart.start + (((left + 10) / chartControls.clientWidth) * (chart.end - chart.start)));
-// 		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
-// 	}
-// 	if (chartEndClicked){
-// 		let offsetRight = 1 - (event.clientX - endClickedPosition);
-// 		let right = endRightOffset + offsetRight;
-// 		right = right >= 0 ? right : 0;
-// 		right = right <= startPosition ? right : startPosition;
-// 		chartEnd.style.right = `${right}px`;
-// 		chartEnd.dataset.value = (chart.end - (((right + 10) / chartControls.clientWidth) * (chart.end - chart.start)));
-// 		chart.drawLines('draw-target', chartStart.dataset.value, chartEnd.dataset.value);
-// 	}
-// });
-// document.addEventListener('touchend', () => {
-// 	chartStartClicked = false;
-// 	chartEndClicked = false;
-// 	document.getElementById('draw-target').classList.remove('dragging')
-// });
 
 /***/ }),
 

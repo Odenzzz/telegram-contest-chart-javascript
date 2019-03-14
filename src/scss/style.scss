@@ -7,12 +7,12 @@ body{
 *{
 	box-sizing: border-box;
 }
-path{
+.chart__window path{
 	transition: .4s ease-in-out;
 	transform: translateZ(0);
 }
-.dragging path{
-	transition: .1s ease-in-out;
+.chart__window .dragging path{
+	transition: 0.05s ease-in-out;
 }
 
 .chart_wrapper{
@@ -27,7 +27,7 @@ path{
 	height: 500px;
 }
 .chart__map{
-	height: 150px;
+	height: 100px;
 	margin: 10px 0;
 	position: relative;
 	overflow: hidden;
