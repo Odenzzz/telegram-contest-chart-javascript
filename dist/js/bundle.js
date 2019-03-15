@@ -198,7 +198,7 @@ class Chart {
 
 		if (this.getActiveLinesCount() === 0){
 			// Prevent the not smooth animation on disable last chart
-			return {min: 0, max: this.chart.viewBoxWidth};
+			return {min: 0, max: this.viewBoxWidth};
 		}
 
 		for (let coordIndex in this.x){
@@ -231,17 +231,52 @@ class Chart {
 		}
 
 		return count;
+	}
+
+
+	drawDate(target, start, end){
+
+		const range = [];
+		const drawingDates = [];
+		const countOfdates = Math.floor(target.clientWidth / 100);
+
+
+		for (const index in this.x){
+			if (this.x[index] >= start && this.x[index] <= end){
+				range.push(this.x[index]);
+			}
+		}
+
+		const removeFromStart = Math.ceil((range.length % countOfdates) / 2);
+		const removeFromEnd = Math.floor((range.length % countOfdates) / 2);
+
+
+		range.splice(range.length - removeFromEnd);
+
+		range.splice(0, removeFromStart);
+
+		range = range.filter(() => {
+
+		})
 
 	}
 
-	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth}){
+	drawValue(){
+
+	}
+
+	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
+
 
 		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
 		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
 
+		if (drawValues){
+			this.drawDate(target, start, end);
+		}
+
+
 		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
-
-
 
 		// Disable zoom less than 100%
 		start = this.start > start ? this.start : start;
@@ -261,9 +296,13 @@ class Chart {
 				coordIndex = Number(coordIndex);
 				let x = this.x[coordIndex];
 				let y = yCoords[coordIndex];
+
 				x = (1 - ((end - x) / chartWidth)) * this.viewBoxWidth;
 				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * aspectRatioCoeff;
+
+
 				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
+
 			}
 
 			let path = target.querySelector(`.line-${lineId}`);
@@ -333,6 +372,8 @@ class ChartTemplate {
 		this.chartWindow = this.initChartWindow();
 
 		this.map = this.initMap();
+
+		this.initControlButtons();
 
 	}
 
@@ -407,7 +448,7 @@ class ChartTemplate {
 			this.controlsState.minMapViewRange      = this.viewRangeWidth;
 		});
 
-		this.chart.drawLines({target: chartWindow});
+		this.chart.drawLines({target: chartWindow, drawValues: true});
 
 		return chartWindow;
 
@@ -416,23 +457,56 @@ class ChartTemplate {
 	get startChartValue(){
 		return this.layoutContorls.startChartSlider.x.baseVal.value;
 	}
+	set startChartValue(value){
+		this.layoutContorls.startChartSlider.x.baseVal.value = value;
+	}
 	get startChartWidth(){
 		return this.layoutContorls.startChartSlider.width.baseVal.value;
 	}
 
 
+
 	get endChartValue(){
 		return this.layoutContorls.endChartSlider.x.baseVal.value;
+	}
+	set endChartValue(value){
+		this.layoutContorls.endChartSlider.x.baseVal.value = value;
 	}
 	get endChartWidth(){
 		return this.layoutContorls.endChartSlider.width.baseVal.value;
 	}
+
+
 
 	get viewRangeWidth(){
 		return (this.endChartValue - this.startChartValue) ;
 	}
 
 	initControlButtons(){
+		for (let line_id in this.chart.lines){
+
+			const button = document.createElement('button');
+			button.style.background = this.chart.lines[line_id].color;
+			button.innerHTML = this.chart.lines[line_id].name;
+
+			button.addEventListener('click', () => {
+				const line = this.chartWindow.querySelector(`.line-${line_id}`);
+				if (this.chart.lines[line_id].active){
+					this.chart.lines[line_id].active = false;
+					line.style.opacity = 0;
+				}else{
+					this.chart.lines[line_id].active = true;
+					line.style.opacity = 1;
+				}
+				this.chart.drawLines({
+					target: this.chartWindow,
+					startPercent: this.startChartValue,
+					endPercent: this.endChartValue + this.endChartWidth,
+					drawValues: true
+				});
+			});
+			this.layout.querySelector('.chart__buttons').appendChild(button);
+		}
 
 	}
 
@@ -443,7 +517,7 @@ class ChartTemplate {
 		value = value > 0 ? value : 0;
 		value = value < maxOfStartPosition ? value : maxOfStartPosition;
 
-		this.layoutContorls.startChartSlider.x.baseVal.value = value;
+		this.startChartValue = value;
 
 		this.changeMapViewSize();
 	}
@@ -455,7 +529,7 @@ class ChartTemplate {
 		value = value > minOfEndPosition ? value : minOfEndPosition;
 		value = value + this.endChartWidth < this.chart.viewBoxWidth ? value : this.chart.viewBoxWidth - this.endChartWidth;
 
-		this.layoutContorls.endChartSlider.x.baseVal.value = value;
+		this.endChartValue = value;
 
 		this.changeMapViewSize();
 
@@ -491,6 +565,7 @@ class ChartTemplate {
 		document.addEventListener('mousemove', (event) => {
 
 			if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
+
 				let valueStart;
 				if (this.controlsState.chartReverceMove){
 					valueStart = this.controlsState.startPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth;
@@ -498,8 +573,11 @@ class ChartTemplate {
 					valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth;
 				}
 				this.changeStartPosition(valueStart);
+
 			}
+
 			if (this.controlsState.endClicked || this.controlsState.mapRangeClicked){
+
 				let valueEnd;
 				if (this.controlsState.chartReverceMove){
 					valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth);
@@ -507,15 +585,16 @@ class ChartTemplate {
 					valueEnd = (this.controlsState.endPosition + ( 0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
 				}
 				this.changeEndPosition(valueEnd);
+
 			}
 
 			if(this.controlsState.chartMove){
 				const startPercent = this.startChartValue;
 				const endPercent = this.endChartValue + this.endChartWidth;
-				const target = this.layout.querySelector('.chart__window svg');
+				const target = this.chartWindow;
 
 				target.classList.add('dragging');
-				this.chart.drawLines({target, startPercent, endPercent});
+				this.chart.drawLines({target, startPercent, endPercent, drawValues: true});
 				setTimeout(() => {
 					target.classList.remove('dragging');
 				}, 0);
@@ -532,11 +611,11 @@ class ChartTemplate {
 }
 
 
-new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[0]);
+// new Chart(chartData[0]);
 // new Chart(chartData[1]);
 // new Chart(chartData[2]);
 // new Chart(chartData[3]);
-// new Chart(chartData[4]);
+new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[4]);
 
 /***/ }),
 
