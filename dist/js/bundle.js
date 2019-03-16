@@ -134,6 +134,7 @@ class Chart {
 
 		this.layout.init();
 
+
 	}
 
 
@@ -236,29 +237,67 @@ class Chart {
 
 	drawDate(target, start, end){
 
-		const range = [];
-		const drawingDates = [];
-		const countOfdates = Math.floor(target.clientWidth / 100);
+		const datesToRemove = [];
+		datesToRemove.push(...target.getElementsByClassName('active-date'));
+		datesToRemove.push(...target.getElementsByTagName('text'));
 
-
-		for (const index in this.x){
-			if (this.x[index] >= start && this.x[index] <= end){
-				range.push(this.x[index]);
-			}
+		for (const remove of datesToRemove){
+			// console.log(remove);
+			remove.remove()
 		}
 
-		const removeFromStart = Math.ceil((range.length % countOfdates) / 2);
-		const removeFromEnd = Math.floor((range.length % countOfdates) / 2);
+		const range = this.x.slice();
 
 
-		range.splice(range.length - removeFromEnd);
+		const drawCountOfdates = target.clientWidth / 50;
 
-		range.splice(0, removeFromStart);
+		const coeff = target.viewBox.baseVal.width / target.clientWidth;
 
-		range = range.filter(() => {
+		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().width) / drawCountOfdates);
 
-		})
+		console.log(range.length / totalDrawsCount);
 
+
+
+		const drawingDates = range.filter((element, index) => {
+			return index % Math.floor(range.length / totalDrawsCount * 1.5) === 0;
+		});
+
+
+		const monthNames = [
+			"Dec", "Jan", "Feb", "Mar",
+			"Apr", "May", "Jun", "Jul",
+			"Aug", "Sep", "Oct",
+			"Nov"
+		];
+
+		for (const date of drawingDates){
+
+			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
+
+			let path = target.querySelector(`.date-${date}`);
+
+			if (path === null){
+				path = document.createElementNS('http://www.w3.org/2000/svg','path');
+
+				const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+				const dateValue = new Date(date);
+				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
+				text.setAttributeNS(null, 'x', x);
+				text.setAttributeNS(null, 'font-size', 2);
+				text.setAttributeNS(null, 'y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
+				target.appendChild(text)
+
+
+				path.setAttributeNS(null, 'stroke', '#000');
+				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
+				path.setAttributeNS(null, 'fill', 'none');
+				target.appendChild(path);
+			}
+
+			path.setAttributeNS(null, 'class', `date-${date} active-date`);
+			path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
+		}
 	}
 
 	drawValue(){
@@ -270,10 +309,6 @@ class Chart {
 
 		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
 		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
-
-		if (drawValues){
-			this.drawDate(target, start, end);
-		}
 
 
 		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
@@ -318,6 +353,10 @@ class Chart {
 				target.appendChild(path);
 			}
 			path.setAttributeNS(null, 'd', pathLine);
+		}
+
+		if (drawValues){
+			this.drawDate(target, start, end);
 		}
 	}
 }
@@ -611,11 +650,7 @@ class ChartTemplate {
 }
 
 
-// new Chart(chartData[0]);
-// new Chart(chartData[1]);
-// new Chart(chartData[2]);
-// new Chart(chartData[3]);
-new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[4]);
+new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[0]);
 
 /***/ }),
 
