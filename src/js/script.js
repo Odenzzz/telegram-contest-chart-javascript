@@ -204,7 +204,6 @@ class Chart {
 
 				const dateValue = new Date(date);
 				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
-				text.setAttributeNS(null, 'font-size', 2);
 				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
 
 				text.dataset.date = date;
@@ -389,10 +388,12 @@ class ChartTemplate {
 		this.layoutContorls.startChartSlider = this.createSlider(map);
 		this.layoutContorls.startChartSlider.setAttributeNS(null, 'x', this.controlsState.startPosition);
 		this.layoutContorls.startChartSlider.addEventListener('mousedown', () => this.controlsState.startClicked = true);
+		this.layoutContorls.startChartSlider.addEventListener('touchstart', () => this.controlsState.startClicked = true);
 
 		this.layoutContorls.endChartSlider = this.createSlider(map);
 		this.layoutContorls.endChartSlider.setAttributeNS(null, 'x', this.controlsState.endPosition - this.endChartWidth);
 		this.layoutContorls.endChartSlider.addEventListener('mousedown', () => this.controlsState.endClicked = true);
+		this.layoutContorls.endChartSlider.addEventListener('touchstart', () => this.controlsState.endClicked = true);
 
 		this.changeMapViewSize();
 
@@ -411,6 +412,10 @@ class ChartTemplate {
 			this.controlsState.clickInitialPosition = event.clientX;
 			this.controlsState.chartMove            = true;
 		});
+		chartSlider.addEventListener('touchstart', event => {
+			this.controlsState.clickInitialPosition = event.touches[0].clientX;
+			this.controlsState.chartMove            = true;
+		});
 
 		map.appendChild(chartSlider);
 		return chartSlider;
@@ -424,10 +429,16 @@ class ChartTemplate {
 		viewRange.setAttributeNS(null, 'width', 0);
 		viewRange.setAttributeNS(null, 'height', map.viewBox.baseVal.height * 1.1);
 		viewRange.setAttributeNS(null, 'fill', 'rgba(0,0,0,0)');
-		viewRange.setAttributeNS(null, 'stroke', 'rgba(0,0,0,0.5)');
+		viewRange.setAttributeNS(null, 'stroke', 'rgba(133, 173, 201, .5)');
 		viewRange.setAttributeNS(null, 'stroke-width', this.chart.viewBoxWidth * 0.02);
 		viewRange.addEventListener('mousedown', event => {
 			this.controlsState.clickInitialPosition = event.clientX;
+			this.controlsState.mapRangeClicked      = true;
+			this.controlsState.chartMove            = true;
+			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+		});
+		viewRange.addEventListener('touchstart', event => {
+			this.controlsState.clickInitialPosition = event.touches[0].clientX;
 			this.controlsState.mapRangeClicked      = true;
 			this.controlsState.chartMove            = true;
 			this.controlsState.minMapViewRange      = this.viewRangeWidth;
@@ -443,6 +454,13 @@ class ChartTemplate {
 
 		chartWindow.addEventListener('mousedown', event => {
 			this.controlsState.clickInitialPosition = event.clientX;
+			this.controlsState.mapRangeClicked      = true;
+			this.controlsState.chartMove            = true;
+			this.controlsState.chartReverceMove     = true;
+			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+		});
+		chartWindow.addEventListener('touchstart', event => {
+			this.controlsState.clickInitialPosition = event.touches[0].clientX;
 			this.controlsState.mapRangeClicked      = true;
 			this.controlsState.chartMove            = true;
 			this.controlsState.chartReverceMove     = true;
@@ -555,6 +573,45 @@ class ChartTemplate {
 		this.controlsState.mapRangeClicked  = false;
 	}
 
+	moveChart(event){
+		const clientX = event.clientX || event.touches[0].clientX;
+		if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
+
+			let valueStart;
+			if (this.controlsState.chartReverceMove){
+				valueStart = this.controlsState.startPosition + ((this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.viewRangeWidth;
+			}else{
+				valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth;
+			}
+			this.changeStartPosition(valueStart);
+
+		}
+
+		if (this.controlsState.endClicked || this.controlsState.mapRangeClicked){
+
+			let valueEnd;
+			if (this.controlsState.chartReverceMove){
+				valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.viewRangeWidth);
+			}else{
+				valueEnd = (this.controlsState.endPosition + ( 0 - (this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
+			}
+			this.changeEndPosition(valueEnd);
+
+		}
+
+		if(this.controlsState.chartMove){
+			const startPercent = this.startChartValue;
+			const endPercent = this.endChartValue + this.endChartWidth;
+			const target = this.chartWindow;
+
+			target.classList.add('dragging');
+			this.chart.drawLines({target, startPercent, endPercent, drawValues: true});
+			setTimeout(() => {
+				target.classList.remove('dragging');
+			}, 0);
+		}
+	}
+
 	initLayout(){
 
 		const layout = document.createElement('div');
@@ -564,45 +621,15 @@ class ChartTemplate {
 		layout.innerHTML = this.chartTemplate;
 
 		document.addEventListener('mousemove', (event) => {
-
-			if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
-
-				let valueStart;
-				if (this.controlsState.chartReverceMove){
-					valueStart = this.controlsState.startPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth;
-				}else{
-					valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth;
-				}
-				this.changeStartPosition(valueStart);
-
-			}
-
-			if (this.controlsState.endClicked || this.controlsState.mapRangeClicked){
-
-				let valueEnd;
-				if (this.controlsState.chartReverceMove){
-					valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.viewRangeWidth);
-				}else{
-					valueEnd = (this.controlsState.endPosition + ( 0 - (this.controlsState.clickInitialPosition - event.clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
-				}
-				this.changeEndPosition(valueEnd);
-
-			}
-
-			if(this.controlsState.chartMove){
-				const startPercent = this.startChartValue;
-				const endPercent = this.endChartValue + this.endChartWidth;
-				const target = this.chartWindow;
-
-				target.classList.add('dragging');
-				this.chart.drawLines({target, startPercent, endPercent, drawValues: true});
-				setTimeout(() => {
-					target.classList.remove('dragging');
-				}, 0);
-			}
+			this.moveChart(event);
+		});
+		document.addEventListener('touchmove', (event) => {
+			this.moveChart(event);
 		});
 
+
 		document.addEventListener('mouseup', () => this.clearConsrolState());
+		document.addEventListener('touchend', () => this.clearConsrolState());
 
 		this.appendTarget.append(layout);
 

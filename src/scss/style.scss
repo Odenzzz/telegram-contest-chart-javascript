@@ -90,7 +90,11 @@ svg, g{
 }
 text{
 	opacity: 0;
-	transition: 0.8s ease;
+	transition: 0.1s ease;
+	user-select: none;
+	font-size: 2px;
+	color: #96a2aa;
+	fill: #96a2aa;
 }
 .active-date{
 	opacity: 1;
