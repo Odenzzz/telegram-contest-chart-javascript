@@ -134,6 +134,11 @@ class Chart {
 
 		this.layout.init();
 
+		this.displayedDates = [];
+		this.datesToRemove = [];
+
+		this.removeTimeout;
+
 
 	}
 
@@ -234,35 +239,7 @@ class Chart {
 		return count;
 	}
 
-
 	drawDate(target, start, end){
-
-		const datesToRemove = [];
-		datesToRemove.push(...target.getElementsByClassName('active-date'));
-		datesToRemove.push(...target.getElementsByTagName('text'));
-
-		for (const remove of datesToRemove){
-			// console.log(remove);
-			remove.remove()
-		}
-
-		const range = this.x.slice();
-
-
-		const drawCountOfdates = target.clientWidth / 50;
-
-		const coeff = target.viewBox.baseVal.width / target.clientWidth;
-
-		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().width) / drawCountOfdates);
-
-		console.log(range.length / totalDrawsCount);
-
-
-
-		const drawingDates = range.filter((element, index) => {
-			return index % Math.floor(range.length / totalDrawsCount * 1.5) === 0;
-		});
-
 
 		const monthNames = [
 			"Dec", "Jan", "Feb", "Mar",
@@ -271,33 +248,128 @@ class Chart {
 			"Nov"
 		];
 
-		for (const date of drawingDates){
+		const range = this.x.slice();
 
+
+
+		const drawCountOfdates = target.clientWidth / 50;
+
+		const coeff = target.viewBox.baseVal.width / target.clientWidth;
+
+		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().width) / drawCountOfdates);
+
+
+		// const current = target.getElementsByClassName('active-date');
+
+		// const currentDates = [];
+
+		// for (const current_date of current){
+		// 	currentDates.push(Number(current_date.dataset.date));
+		// }
+
+		this.displayedDates = range.filter((element, index) => {
+			return index % Math.floor(range.length / totalDrawsCount * 1.5) === 0;
+		});
+
+		// this.datesToRemove = currentDates.filter((element) => {
+		// 	return this.displayedDates.indexOf(Number(element)) === -1;
+		// });
+
+
+
+
+		// if (!this.layout.controlsState.mapRangeClicked){
+		// 	for (const dateToRemove of this.datesToRemove){
+		// 		if (this.datesToRemove.indexOf(dateToRemove)){
+		// 			const date = target.querySelector(`.date-${dateToRemove}`);
+		// 			const dateText = target.querySelector(`.date-${dateToRemove}-text`);
+		// 			if (date){
+		// 				date.classList.remove('active-date');
+		// 				date.classList.add('removing-date');
+		// 				dateText.classList.remove('active-date');
+		// 				dateText.classList.add('removing-date');
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		for (const date of range){
 			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
 
-			let path = target.querySelector(`.date-${date}`);
+			// let path = target.querySelector(`.date-${date}`);
+			let text = target.querySelector(`.date-${date}-text`);
 
-			if (path === null){
-				path = document.createElementNS('http://www.w3.org/2000/svg','path');
+			// if (path === null){
+			// 	path = document.createElementNS('http://www.w3.org/2000/svg','path');
 
-				const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+			// 	path.setAttributeNS(null, 'stroke', '#000');
+			// 	path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
+			// 	path.setAttributeNS(null, 'fill', 'none');
+			// 	path.setAttributeNS(null, 'class', `date-${date} active-date`);
+			// 	path.dataset.date = date;
+			// 	target.appendChild(path);
+			// }
+			if (text === null){
+				text = document.createElementNS('http://www.w3.org/2000/svg','text');
+
 				const dateValue = new Date(date);
 				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
-				text.setAttributeNS(null, 'x', x);
 				text.setAttributeNS(null, 'font-size', 2);
-				text.setAttributeNS(null, 'y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
-				target.appendChild(text)
+				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
 
-
-				path.setAttributeNS(null, 'stroke', '#000');
-				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
-				path.setAttributeNS(null, 'fill', 'none');
-				target.appendChild(path);
+				text.dataset.date = date;
+				target.appendChild(text);
 			}
 
-			path.setAttributeNS(null, 'class', `date-${date} active-date`);
-			path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
+
+			if (this.displayedDates.indexOf(date) >= 0){
+				text.setAttribute('x', x);
+				text.setAttributeNS(null, 'class', `date-${date}-text active-date`);
+			}else{
+				text.setAttributeNS(null, 'class', `date-${date}-text removing-date`);
+			}
+			// path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
 		}
+
+		for (const date of this.displayedDates){
+			// let text = target.querySelector(`.date-${date}-text`);
+			// console.log(text);
+			// if (text !== null){
+			// 	text.classList.remove('removing-date')
+			// 	text.classList.add('active-date')
+			// }
+			// const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
+
+			// let path = target.querySelector(`.date-${date}`);
+			// let text = target.querySelector(`.date-${date}-text`);
+
+			// if (path === null){
+			// 	path = document.createElementNS('http://www.w3.org/2000/svg','path');
+
+			// 	path.setAttributeNS(null, 'stroke', '#000');
+			// 	path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
+			// 	path.setAttributeNS(null, 'fill', 'none');
+			// 	path.setAttributeNS(null, 'class', `date-${date} active-date`);
+			// 	path.dataset.date = date;
+			// 	target.appendChild(path);
+			// }
+			// if (text === null){
+			// 	text = document.createElementNS('http://www.w3.org/2000/svg','text');
+
+			// 	const dateValue = new Date(date);
+			// 	text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
+			// 	text.setAttributeNS(null, 'font-size', 2);
+			// 	text.setAttributeNS(null, 'class', `date-${date}-text active-date`);
+			// 	text.dataset.date = date;
+			// 	target.appendChild(text);
+			// }
+
+			// text.setAttribute('x', x);
+			// text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
+			// path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
+
+		}
+		// console.log(this.displayedDates);
 	}
 
 	drawValue(){
