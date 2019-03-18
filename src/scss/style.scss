@@ -82,6 +82,10 @@ body{
 	background-color: rgba(51, 163, 218, .5);
 	pointer-events: none;
 }
+.line-y0, .line-y1{
+	position: relative;
+	z-index: 2;
+}
 svg, g{
 	width: 100%;
 	height: 100%;
@@ -100,6 +104,16 @@ text{
 	opacity: 1;
 }
 .removing-date{
+	opacity: 0;
+}
+.active-value{
+	transition: 0.1s !important;
+	transition: opacity 0s !important;
+	opacity: 1;
+}
+.removing-value{
+	transition: 0.1s !important;
+	transition: opacity 0s !important;
 	opacity: 0;
 }
 // @keyframes FadeIn{

@@ -126,6 +126,8 @@ class Chart {
 
 		this.viewBoxWidth = 100;
 
+		this.totalValues = [];
+
 		this.parseData(data);
 
 		this.layout = new ChartTemplate({
@@ -135,9 +137,7 @@ class Chart {
 		this.layout.init();
 
 		this.displayedDates = [];
-		this.datesToRemove = [];
-
-		this.removeTimeout;
+		this.displayedValues = [];
 
 
 	}
@@ -168,14 +168,7 @@ class Chart {
 			if (column[0] === key){
 				column.shift();
 
-				const coords = [];
-
-				for (let coord_index in this.x){
-					coords.push({
-						x: this.x[coord_index],
-						y: column[coord_index]
-					})
-				}
+				this.totalValues.push(...column);
 
 				return column;
 			}
@@ -185,6 +178,7 @@ class Chart {
 	}
 
 	parseData(data){
+
 		for (let columnId in data.types){
 			if (data.types[columnId] === 'line'){
 				this.createLineCoords({
@@ -195,6 +189,13 @@ class Chart {
 				})
 			}
 		}
+
+
+		// remove all not unique values
+		this.totalValues = this.totalValues.filter((v, i, s) => s.indexOf(v) === i);
+
+		// sorting array on values
+		this.totalValues.sort();
 	}
 
 	getChartMinMaxValueInRange(start, end){
@@ -239,7 +240,7 @@ class Chart {
 		return count;
 	}
 
-	drawDate(target, start, end){
+	drawDates(target, start, end){
 
 		const monthNames = [
 			"Dec", "Jan", "Feb", "Mar",
@@ -250,8 +251,6 @@ class Chart {
 
 		const range = this.x.slice();
 
-
-
 		const drawCountOfdates = target.clientWidth / 50;
 
 		const coeff = target.viewBox.baseVal.width / target.clientWidth;
@@ -259,56 +258,15 @@ class Chart {
 		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().width) / drawCountOfdates);
 
 
-		// const current = target.getElementsByClassName('active-date');
-
-		// const currentDates = [];
-
-		// for (const current_date of current){
-		// 	currentDates.push(Number(current_date.dataset.date));
-		// }
-
 		this.displayedDates = range.filter((element, index) => {
 			return index % Math.floor(range.length / totalDrawsCount * 1.5) === 0;
 		});
 
-		// this.datesToRemove = currentDates.filter((element) => {
-		// 	return this.displayedDates.indexOf(Number(element)) === -1;
-		// });
-
-
-
-
-		// if (!this.layout.controlsState.mapRangeClicked){
-		// 	for (const dateToRemove of this.datesToRemove){
-		// 		if (this.datesToRemove.indexOf(dateToRemove)){
-		// 			const date = target.querySelector(`.date-${dateToRemove}`);
-		// 			const dateText = target.querySelector(`.date-${dateToRemove}-text`);
-		// 			if (date){
-		// 				date.classList.remove('active-date');
-		// 				date.classList.add('removing-date');
-		// 				dateText.classList.remove('active-date');
-		// 				dateText.classList.add('removing-date');
-		// 			}
-		// 		}
-		// 	}
-		// }
-
 		for (const date of range){
 			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
 
-			// let path = target.querySelector(`.date-${date}`);
 			let text = target.querySelector(`.date-${date}-text`);
 
-			// if (path === null){
-			// 	path = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-			// 	path.setAttributeNS(null, 'stroke', '#000');
-			// 	path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
-			// 	path.setAttributeNS(null, 'fill', 'none');
-			// 	path.setAttributeNS(null, 'class', `date-${date} active-date`);
-			// 	path.dataset.date = date;
-			// 	target.appendChild(path);
-			// }
 			if (text === null){
 				text = document.createElementNS('http://www.w3.org/2000/svg','text');
 
@@ -319,59 +277,77 @@ class Chart {
 				text.dataset.date = date;
 				target.appendChild(text);
 			}
-
-
 			if (this.displayedDates.indexOf(date) >= 0){
 				text.setAttribute('x', x);
 				text.setAttributeNS(null, 'class', `date-${date}-text active-date`);
 			}else{
 				text.setAttributeNS(null, 'class', `date-${date}-text removing-date`);
 			}
-			// path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
 		}
 
-		for (const date of this.displayedDates){
-			// let text = target.querySelector(`.date-${date}-text`);
-			// console.log(text);
-			// if (text !== null){
-			// 	text.classList.remove('removing-date')
-			// 	text.classList.add('active-date')
-			// }
-			// const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
-
-			// let path = target.querySelector(`.date-${date}`);
-			// let text = target.querySelector(`.date-${date}-text`);
-
-			// if (path === null){
-			// 	path = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-			// 	path.setAttributeNS(null, 'stroke', '#000');
-			// 	path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
-			// 	path.setAttributeNS(null, 'fill', 'none');
-			// 	path.setAttributeNS(null, 'class', `date-${date} active-date`);
-			// 	path.dataset.date = date;
-			// 	target.appendChild(path);
-			// }
-			// if (text === null){
-			// 	text = document.createElementNS('http://www.w3.org/2000/svg','text');
-
-			// 	const dateValue = new Date(date);
-			// 	text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
-			// 	text.setAttributeNS(null, 'font-size', 2);
-			// 	text.setAttributeNS(null, 'class', `date-${date}-text active-date`);
-			// 	text.dataset.date = date;
-			// 	target.appendChild(text);
-			// }
-
-			// text.setAttribute('x', x);
-			// text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
-			// path.setAttributeNS(null, 'd', `M${x} 0 V${this.viewBoxWidth * (target.clientHeight / target.clientWidth)}`);
-
-		}
-		// console.log(this.displayedDates);
 	}
 
-	drawValue(){
+	drawValues(target, chartValuesMinMax){
+
+		const totalMinMax = this.getChartMinMaxValueInRange(this.start, this.end);
+
+		const countValuesToDisplay = Math.floor(target.clientHeight / 60);
+
+		const coeff = target.viewBox.baseVal.height / target.clientHeight;
+
+		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().height) / countValuesToDisplay);
+
+		const valuesRange = this.totalValues;
+
+		console.log(this.totalValues);
+
+		const displayInRangeStep = Math.floor((chartValuesMinMax.max - chartValuesMinMax.min) / countValuesToDisplay);
+
+		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
+
+		let stepValue = chartValuesMinMax.min + (chartHeight * 0.02);
+
+
+		for (const value of valuesRange){
+
+			const y = ((((chartHeight - (value - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * (target.clientHeight / target.clientWidth);
+
+			let text = target.querySelector(`.value-${value}-text`);
+			let path = target.querySelector(`.value-${value}`);
+
+			if (path === null){
+
+				path = document.createElementNS('http://www.w3.org/2000/svg','path');
+
+				path.setAttributeNS(null, 'stroke', '#96a2aa');
+				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
+				path.setAttributeNS(null, 'fill', 'none');
+			}
+
+			if (text === null){
+				text = document.createElementNS('http://www.w3.org/2000/svg','text');
+
+				text.innerHTML = value;
+				text.setAttribute('x', 0);
+
+				text.dataset.value = value;
+				target.appendChild(text);
+			}
+			if (value >= stepValue){
+				stepValue += displayInRangeStep;
+				text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
+				text.setAttributeNS(null, 'class', `value-${value}-text active-value`);
+				path.setAttributeNS(null, 'class', `value-${value} active-value`);
+				path.setAttributeNS(null, 'd', `M0 ${y} L ${700} ${y}`);
+				target.appendChild(path);
+			}else{
+				if (target.querySelector(`.value-${value}`) !== null){
+					target.querySelector(`.value-${value}`).remove();
+				}
+				text.setAttributeNS(null, 'class', `value-${value}-text removing-value`);
+				path.setAttributeNS(null, 'class', `value-${value} removing-value`);
+			}
+		}
 
 	}
 
@@ -399,6 +375,7 @@ class Chart {
 			const yCoords = this.lines[lineId].coords;
 
 			for (let coordIndex in this.x){
+
 				coordIndex = Number(coordIndex);
 				let x = this.x[coordIndex];
 				let y = yCoords[coordIndex];
@@ -427,7 +404,8 @@ class Chart {
 		}
 
 		if (drawValues){
-			this.drawDate(target, start, end);
+			this.drawDates(target, start, end);
+			this.drawValues(target, chartValuesMinMax);
 		}
 	}
 }
@@ -749,7 +727,7 @@ class ChartTemplate {
 }
 
 
-new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[0]);
+new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[2]);
 
 /***/ }),
 
