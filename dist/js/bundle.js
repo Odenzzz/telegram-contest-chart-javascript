@@ -249,23 +249,59 @@ class Chart {
 			"Nov"
 		];
 
+
 		const range = this.x.slice();
-
-		const drawCountOfdates = target.clientWidth / 50;
-
-		const coeff = target.viewBox.baseVal.width / target.clientWidth;
-
-		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().width) / drawCountOfdates);
+		const totalStartDate = range.shift();
+		const totalEndDate = range.pop();
 
 
-		this.displayedDates = range.filter((element, index) => {
-			return index % Math.floor(range.length / totalDrawsCount * 1.5) === 0;
-		});
 
-		for (const date of range){
+		if (!this.layout.controlsState.mapRangeClicked){
+
+
+
+			// const drawCountOfdates = target.clientWidth / 100;
+
+			const coeff = target.viewBox.baseVal.width / target.clientWidth;
+
+			console.log(coeff * target.querySelector('.chart-wrapper').getBoundingClientRect().width);
+
+			const totalDrawsCount = Math.floor((coeff * target.querySelector('.chart-wrapper').getBoundingClientRect().width) / (100 * coeff));
+
+			console.log(coeff);
+
+			const step = Math.floor(((totalEndDate - totalStartDate) / totalDrawsCount));
+
+			let dateValue = totalStartDate;
+
+			this.displayedDates = [];
+
+			for (let i = 0; i < totalDrawsCount; i++){
+				dateValue = Math.floor(dateValue / 86400000) * 86400000;
+				this.displayedDates.push(dateValue);
+				dateValue += step;
+			}
+
+			this.displayedDates.push(Math.floor(totalEndDate / 86400000) * 86400000);
+
+			const currentDates = target.getElementsByClassName('date-text');
+
+			for (const currentDate of currentDates){
+				if (this.displayedDates.indexOf(Number(currentDate.dataset.date)) === -1){
+					currentDate.classList.remove('active-date');
+					currentDate.classList.add('removing-date');
+				}
+			}
+		}
+
+
+		for (const date of this.displayedDates){
+
 			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
 
-			let text = target.querySelector(`.date-${date}-text`);
+			const shift = (1 - (totalEndDate - date) / (totalEndDate - totalStartDate));
+
+			let text = target.querySelector(`.date-${date}`);
 
 			if (text === null){
 				text = document.createElementNS('http://www.w3.org/2000/svg','text');
@@ -275,14 +311,11 @@ class Chart {
 				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
 
 				text.dataset.date = date;
-				target.appendChild(text);
+
+				target.querySelector('.dates-wrapper').appendChild(text);
 			}
-			if (this.displayedDates.indexOf(date) >= 0){
-				text.setAttribute('x', x);
-				text.setAttributeNS(null, 'class', `date-${date}-text active-date`);
-			}else{
-				text.setAttributeNS(null, 'class', `date-${date}-text removing-date`);
-			}
+			text.setAttribute('x', x);
+			text.setAttributeNS(null, 'class', `date-${date} date-text active-date`);
 		}
 
 	}
@@ -298,8 +331,6 @@ class Chart {
 		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().height) / countValuesToDisplay);
 
 		const valuesRange = this.totalValues;
-
-		console.log(this.totalValues);
 
 		const displayInRangeStep = Math.floor((chartValuesMinMax.max - chartValuesMinMax.min) / countValuesToDisplay);
 
@@ -331,7 +362,7 @@ class Chart {
 				text.setAttribute('x', 0);
 
 				text.dataset.value = value;
-				target.appendChild(text);
+				target.querySelector('.values-wrapper').appendChild(text);
 			}
 			if (value >= stepValue){
 				stepValue += displayInRangeStep;
@@ -339,7 +370,7 @@ class Chart {
 				text.setAttributeNS(null, 'class', `value-${value}-text active-value`);
 				path.setAttributeNS(null, 'class', `value-${value} active-value`);
 				path.setAttributeNS(null, 'd', `M0 ${y} L ${700} ${y}`);
-				target.appendChild(path);
+				target.querySelector('.values-wrapper').appendChild(path);
 			}else{
 				if (target.querySelector(`.value-${value}`) !== null){
 					target.querySelector(`.value-${value}`).remove();
@@ -359,6 +390,8 @@ class Chart {
 
 
 		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
+
+		target.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth * aspectRatioCoeff}`);
 
 		// Disable zoom less than 100%
 		start = this.start > start ? this.start : start;
@@ -393,12 +426,11 @@ class Chart {
 			if (path === null){
 				// Create the chart path if it not exists
 				path = document.createElementNS('http://www.w3.org/2000/svg','path');
-				target.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth * aspectRatioCoeff}`);
 				path.setAttributeNS(null, 'class', `line-${lineId}`);
 				path.setAttributeNS(null, 'stroke', this.lines[lineId].color);
 				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
 				path.setAttributeNS(null, 'fill', 'none');
-				target.appendChild(path);
+				target.querySelector('.chart-wrapper').appendChild(path);
 			}
 			path.setAttributeNS(null, 'd', pathLine);
 		}
@@ -469,6 +501,12 @@ class ChartTemplate {
 
 		const map = this.layout.querySelector('.chart__map svg');
 
+		const chartWrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+		chartWrapper.setAttributeNS(null, 'class', 'chart-wrapper');
+
+		map.appendChild(chartWrapper);
+
 		this.chart.drawLines({target: map});
 
 		this.layoutContorls.viewRange = this.createMapViewRange(map);
@@ -538,7 +576,24 @@ class ChartTemplate {
 
 	initChartWindow(){
 
+
 		const chartWindow = this.layout.querySelector('.chart__window svg');
+
+		const datesWrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+		datesWrapper.setAttributeNS(null, 'class', 'dates-wrapper');
+
+		const valuesWrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+		valuesWrapper.setAttributeNS(null, 'class', 'values-wrapper');
+
+		const chartWrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+		chartWrapper.setAttributeNS(null, 'class', 'chart-wrapper');
+
+		chartWindow.appendChild(datesWrapper);
+		chartWindow.appendChild(valuesWrapper);
+		chartWindow.appendChild(chartWrapper);
 
 		chartWindow.addEventListener('mousedown', event => {
 			this.controlsState.clickInitialPosition = event.clientX;
@@ -671,6 +726,7 @@ class ChartTemplate {
 			}else{
 				valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth;
 			}
+
 			this.changeStartPosition(valueStart);
 
 		}
@@ -681,11 +737,13 @@ class ChartTemplate {
 			if (this.controlsState.chartReverceMove){
 				valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.viewRangeWidth);
 			}else{
-				valueEnd = (this.controlsState.endPosition + ( 0 - (this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
+				valueEnd = (this.controlsState.endPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.layout.clientWidth) * this.chart.viewBoxWidth);
 			}
+
 			this.changeEndPosition(valueEnd);
 
 		}
+
 
 		if(this.controlsState.chartMove){
 			const startPercent = this.startChartValue;
