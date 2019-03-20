@@ -154,11 +154,9 @@ class Chart {
 
 			const coeff = target.viewBox.baseVal.width / target.clientWidth;
 
-			console.log(coeff * target.querySelector('.chart-wrapper').getBoundingClientRect().width);
 
 			const totalDrawsCount = Math.floor((coeff * target.querySelector('.chart-wrapper').getBoundingClientRect().width) / (100 * coeff));
 
-			console.log(coeff);
 
 			const step = Math.floor(((totalEndDate - totalStartDate) / totalDrawsCount));
 
@@ -272,6 +270,118 @@ class Chart {
 
 	}
 
+
+
+	drawTooltip(target, {x, values}, clientY = 0){
+
+		if (this.layout.controlsState.chartMove){
+			return;
+		}
+
+		let start = this.start + ((this.end - this.start) * (this.layout.startChartValue / this.viewBoxWidth));
+		let end = this.end - ((this.end - this.start) * (1 - ((this.layout.endChartValue + this.layout.endChartWidth) / this.viewBoxWidth)));
+
+
+		const xCoord = (1 - ((end - x) / (end - start))) * this.viewBoxWidth;
+
+
+		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
+
+		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
+
+		let tooltipPath = target.querySelector(`.tooltip-${x}`);
+
+
+		if (tooltipPath === null){
+			this.layout.removeTooltips(`tooltip-${x}`);
+
+			const monthNames = [
+				"Dec", "Jan", "Feb", "Mar",
+				"Apr", "May", "Jun", "Jul",
+				"Aug", "Sep", "Oct",
+				"Nov"
+			];
+
+			const weekdaysNames = [
+				"Sun", "Mon",
+				"Tue", "Wed",
+				"Thu", "Fri",
+				"Sat"
+			];
+
+			const dateValue = new Date(x);
+
+
+			let tooltipHTML = ``;
+			tooltipHTML += `<span class="tooltip-date">${weekdaysNames[dateValue.getDay()]}, ${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
+			tooltipHTML += `<div class="tooltip-values-wrapper">`;
+
+			for (const chartValue of values){
+
+				let circleValue = target.querySelector(`.tooltip-value-${chartValue.y}`);
+
+				const y = ((((chartHeight - (chartValue.y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * (target.clientHeight / target.clientWidth);
+
+				if (circleValue === null){
+
+					circleValue = document.createElementNS('http://www.w3.org/2000/svg','circle');
+
+					circleValue.setAttributeNS(null, 'stroke', chartValue.color);
+					circleValue.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.002);
+					circleValue.setAttributeNS(null, 'fill', '#fff');
+					circleValue.setAttributeNS(null, 'r', this.viewBoxWidth * 0.007);
+					circleValue.setAttributeNS(null, 'class', `tooltip-${x} tooltip-value-${chartValue.y} tooltip-item`);
+
+					target.querySelector('.tooltip-wrapper').appendChild(circleValue);
+
+				}
+
+				circleValue.setAttributeNS(null, 'cx', xCoord);
+				circleValue.setAttributeNS(null, 'cy', y);
+				tooltipHTML += `<div class="tooltip-value-wrapper" style="color: ${chartValue.color}">
+					<span class="tooltip-value">${[chartValue.y].toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}</span>
+					<span class="tooltip-value-name">${chartValue.name}</span>
+				</div>`;
+
+			}
+
+			tooltipHTML += `</div>`;
+
+			tooltipPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+
+			tooltipPath.setAttributeNS(null, 'stroke', '#96a2aa');
+			tooltipPath.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
+			tooltipPath.setAttributeNS(null, 'fill', 'none');
+
+			tooltipPath.setAttributeNS(null, 'class', `tooltip-${x} tooltip-item`);
+
+			tooltipPath.setAttributeNS(null, 'd', `M${xCoord} 0 L ${xCoord} ${100}`);
+
+			target.querySelector('.tooltip-wrapper').appendChild(tooltipPath);
+
+			let tooltipText = target.querySelector(`.tooltip-text-${x}`);
+
+			if (tooltipText === null){
+				tooltipText = document.createElement('div');
+				tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
+			}
+
+
+			tooltipText.innerHTML = tooltipHTML;
+			this.layout.chartWrapper.appendChild(tooltipText);
+
+			const left = (tooltipPath.getBoundingClientRect().left - this.layout.chartWindow.getBoundingClientRect().left) - (tooltipText.clientWidth / 2);
+			const top = (clientY - this.layout.chartWindow.getBoundingClientRect().top) - ((tooltipText.clientHeight + 15));
+
+			console.log(this.layout.chartWindow.getBoundingClientRect().top);
+
+			tooltipText.style.top = `${top}px`;
+			tooltipText.style.left = `${left}px`;
+
+		}
+
+	}
+
 	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
 
 
@@ -358,7 +468,8 @@ class ChartTemplate {
 			clickInitialPosition: 0
 		};
 
-		this.chartWindow, this.mapWindow;
+		this.chartWindow, this.chartWrapper, this.mapWindow;
+
 	}
 
 	get chartTemplate(){
@@ -381,6 +492,8 @@ class ChartTemplate {
 
 		this.chartWindow = this.initChartWindow();
 
+		this.chartWrapper = this.layout.querySelector('.chart__window');
+
 		this.map = this.initMap();
 
 		this.initControlButtons();
@@ -388,6 +501,8 @@ class ChartTemplate {
 	}
 
 	initMap(){
+
+
 
 		const map = this.layout.querySelector('.chart__map svg');
 
@@ -481,9 +596,14 @@ class ChartTemplate {
 
 		chartWrapper.setAttributeNS(null, 'class', 'chart-wrapper');
 
+		const tooltipWrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+		tooltipWrapper.setAttributeNS(null, 'class', 'tooltip-wrapper');
+
 		chartWindow.appendChild(datesWrapper);
 		chartWindow.appendChild(valuesWrapper);
 		chartWindow.appendChild(chartWrapper);
+		chartWindow.appendChild(tooltipWrapper);
 
 		chartWindow.addEventListener('mousedown', event => {
 			this.controlsState.clickInitialPosition = event.clientX;
@@ -499,6 +619,11 @@ class ChartTemplate {
 			this.controlsState.chartReverceMove     = true;
 			this.controlsState.minMapViewRange      = this.viewRangeWidth;
 		});
+		chartWindow.addEventListener('mousemove', event => this.initTooltip(event));
+		chartWindow.addEventListener('touchmove', event => this.initTooltip(event));
+
+		chartWindow.addEventListener('mouseleave', () => this.removeTooltips());
+
 
 		this.chart.drawLines({target: chartWindow, drawValues: true});
 
@@ -606,6 +731,84 @@ class ChartTemplate {
 		this.controlsState.mapRangeClicked  = false;
 	}
 
+	initTooltip(event){
+
+		const coordIndex = this.getCoordIndexByClientX(event.clientX);
+
+		const coords = this.getCoordsByIndex(coordIndex);
+
+		if(coords){
+			this.chart.drawTooltip(this.chartWindow, coords, event.clientY);
+		}
+	}
+
+	removeTooltips(drawingID = 'id-of-tooltip-to-not-remove'){
+
+		const tooltips = this.layout.getElementsByClassName('tooltip-item');
+
+		for (const tooltip of tooltips){
+			if (!tooltip.classList.contains(drawingID)){
+				tooltip.remove();
+			}
+		}
+
+		if (tooltips.length > 0){
+			return this.removeTooltips();
+		}
+
+	}
+
+	getCoordsByIndex(coordIndex){
+
+		const x = this.chart.x[coordIndex];
+
+		const coords = {
+			x: x,
+			values: []
+		};
+
+		for (const lineId in this.chart.lines){
+			if (this.chart.lines[lineId].active){
+				coords.values.push({
+					y: this.chart.lines[lineId].coords[coordIndex],
+					color: this.chart.lines[lineId].color,
+					name: this.chart.lines[lineId].name
+				});
+			}
+		}
+
+		if (coords.values.length > 0){
+			return coords;
+		}else{
+			return false;
+		}
+
+
+
+	}
+
+	getCoordIndexByClientX(clientX){
+
+		const chartCoeff = this.chartWindow.querySelector('.chart-wrapper').getBoundingClientRect().width / this.chartWindow.clientWidth;
+
+		// get window start position inside the full chart
+		const chartStart = this.chart.viewBoxWidth * (chartCoeff * this.controlsState.startPosition / this.chart.viewBoxWidth);
+
+		const chartFullWidth = this.chart.viewBoxWidth * chartCoeff;
+
+		const chartIntervalWidth = chartFullWidth / this.chart.x.length;
+
+		// get cursor position inside the full chart
+		const cursorPositionInChart = chartStart + (clientX - this.chartWindow.getBoundingClientRect().left) / this.chartWindow.clientWidth * this.chart.viewBoxWidth;
+
+		const cursorShift = (((chartFullWidth / 2) - cursorPositionInChart) / chartFullWidth) * chartIntervalWidth;
+
+		const percentCursorPositionInChart = cursorPositionInChart / this.chart.viewBoxWidth / chartCoeff;
+
+		return Math.floor(this.chart.x.length * percentCursorPositionInChart + (cursorShift / chartCoeff));
+
+	}
+
 	moveChart(event){
 		const clientX = event.clientX || event.touches[0].clientX;
 		if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
@@ -636,6 +839,7 @@ class ChartTemplate {
 
 
 		if(this.controlsState.chartMove){
+			this.removeTooltips();
 			const startPercent = this.startChartValue;
 			const endPercent = this.endChartValue + this.endChartWidth;
 			const target = this.chartWindow;
@@ -661,6 +865,10 @@ class ChartTemplate {
 		});
 		document.addEventListener('touchmove', (event) => {
 			this.moveChart(event);
+			const element = event.touches[0];
+			if (element.target !== this.chartWindow){
+				this.removeTooltips();
+			}
 		});
 
 
@@ -672,6 +880,7 @@ class ChartTemplate {
 		return layout;
 
 	}
+
 }
 
 
