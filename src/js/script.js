@@ -143,6 +143,7 @@ class Chart {
 		return count;
 	}
 
+
 	drawDates(target, start, end){
 
 		const monthNames = [
@@ -158,39 +159,33 @@ class Chart {
 		const totalEndDate = range.pop();
 
 
-
 		if (!this.layout.controlsState.mapRangeClicked){
 
-			// const drawCountOfdates = target.clientWidth / 100;
+			const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
 
-			const coeff = target.viewBox.baseVal.width / target.clientWidth;
-
-
-			const totalDrawsCount = Math.floor((coeff * target.querySelector('.chart-wrapper').getBoundingClientRect().width) / (100 * coeff));
+			let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.3);
 
 
-			const step = Math.floor(((totalEndDate - totalStartDate) / totalDrawsCount));
+			myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
 
-			let dateValue = totalStartDate;
+			const totalDrawsCount = windowWidthDrawsCount * myltiple;
+
+			const step = Math.floor((totalEndDate - totalStartDate) / totalDrawsCount);
 
 			this.displayedDates = [];
 
-			for (let i = 0; i < totalDrawsCount; i++){
-				dateValue = Math.floor(dateValue / 86400000) * 86400000;
+			const currentDatesClasses = [];
+
+			for (let i = 0; i <= totalDrawsCount; i++){
+				const dateValue = Math.floor((totalStartDate + (step * i)) / 86400000) * 86400000;
+				currentDatesClasses.push(`date-${dateValue}`);
 				this.displayedDates.push(dateValue);
-				dateValue += step;
 			}
 
-			this.displayedDates.push(Math.floor(totalEndDate / 86400000) * 86400000);
+			this.displayedDates.push(Math.floor((totalEndDate) / 86400000) * 86400000);
 
-			const currentDates = target.getElementsByClassName('date-text');
+			this.layout.removeItems('date-text', currentDatesClasses, 'hide');
 
-			for (const currentDate of currentDates){
-				if (this.displayedDates.indexOf(Number(currentDate.dataset.date)) === -1){
-					currentDate.classList.remove('active-item');
-					currentDate.classList.add('removing-item');
-				}
-			}
 		}
 
 
@@ -208,12 +203,14 @@ class Chart {
 				const dateValue = new Date(date);
 				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
 				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
+				text.setAttribute('width', `50px`);
 
 				text.dataset.date = date;
 
 				target.querySelector('.dates-wrapper').appendChild(text);
 			}
-			text.setAttribute('x', x);
+
+			text.setAttribute('x', x - (shift * text.getBoundingClientRect().width * (this.viewBoxWidth / this.layout.chartWindow.clientWidth)));
 			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
 		}
 
@@ -314,6 +311,7 @@ class Chart {
 
 		let tooltipPath = target.querySelector(`.tooltip-${x}`);
 
+		let tooltipHTML = ``;
 
 		if (tooltipPath === null){
 
@@ -336,7 +334,7 @@ class Chart {
 			const dateValue = new Date(x);
 
 
-			let tooltipHTML = ``;
+
 			tooltipHTML += `<span class="tooltip-date">${weekdaysNames[dateValue.getDay()]}, ${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
 			tooltipHTML += `<div class="tooltip-values-wrapper">`;
 
@@ -383,24 +381,29 @@ class Chart {
 
 			target.querySelector('.tooltip-wrapper').appendChild(tooltipPath);
 
-			let tooltipText = target.querySelector(`.tooltip-text-${x}`);
-
-			if (tooltipText === null){
-				tooltipText = document.createElement('div');
-				tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
-			}
-
-
-			tooltipText.innerHTML = tooltipHTML;
-			this.layout.chartWrapper.appendChild(tooltipText);
-
-			const left = (tooltipPath.getBoundingClientRect().left - this.layout.chartWindow.getBoundingClientRect().left) - (tooltipText.clientWidth / 2);
-			const top = (clientY - this.layout.chartWindow.getBoundingClientRect().top) - ((tooltipText.clientHeight + 15));
-
-			tooltipText.style.top = `${top}px`;
-			tooltipText.style.left = `${left}px`;
-
 		}
+
+		let tooltipText = this.layout.chartWindow.querySelector(`#tooltip-text-${x}`);
+
+		if (tooltipText === null){
+			tooltipText = document.createElement('div');
+			tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
+			tooltipText.setAttribute('id', `tooltip-text-${x}`);
+			this.layout.chartWrapper.appendChild(tooltipText);
+		}
+
+		tooltipText.innerHTML = tooltipHTML;
+
+		const left = (tooltipPath.getBoundingClientRect().left - this.layout.chartWindow.getBoundingClientRect().left) - (tooltipText.clientWidth / 2);
+		const top = (clientY - this.layout.chartWindow.getBoundingClientRect().top) - ((tooltipText.clientHeight + 15));
+
+		tooltipText.style.top = `${top}px`;
+		tooltipText.style.left = `${left}px`;
+
+
+
+
+
 
 	}
 
@@ -941,7 +944,7 @@ class ChartTemplate {
 
 
 new Chart(chartData[0]);
-new Chart(chartData[1]);
-new Chart(chartData[2]);
-new Chart(chartData[3]);
-new Chart(chartData[4]);
+// new Chart(chartData[1]);
+// new Chart(chartData[2]);
+// new Chart(chartData[3]);
+// new Chart(chartData[4]);
