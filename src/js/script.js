@@ -1,4 +1,5 @@
 import chartData from '../data/chart_data';
+import { reject } from 'q';
 
 
 
@@ -116,6 +117,18 @@ class Chart {
 				}
 			}
 		}
+
+		const range = max - min;
+
+		max += range * 0.05;
+
+		if (min > 0 && (min - range * 0.05) < 0){
+			min = 0;
+		}else{
+			min -= range * 0.05;
+			min = Math.floor(min / this.convert(min)) * this.convert(min);
+		}
+
 		return {min, max};
 	}
 
@@ -148,8 +161,6 @@ class Chart {
 
 		if (!this.layout.controlsState.mapRangeClicked){
 
-
-
 			// const drawCountOfdates = target.clientWidth / 100;
 
 			const coeff = target.viewBox.baseVal.width / target.clientWidth;
@@ -176,8 +187,8 @@ class Chart {
 
 			for (const currentDate of currentDates){
 				if (this.displayedDates.indexOf(Number(currentDate.dataset.date)) === -1){
-					currentDate.classList.remove('active-date');
-					currentDate.classList.add('removing-date');
+					currentDate.classList.remove('active-item');
+					currentDate.classList.add('removing-item');
 				}
 			}
 		}
@@ -203,69 +214,81 @@ class Chart {
 				target.querySelector('.dates-wrapper').appendChild(text);
 			}
 			text.setAttribute('x', x);
-			text.setAttributeNS(null, 'class', `date-${date} date-text active-date`);
+			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
 		}
 
 	}
 
+	convert(n) {
+		if (Math.abs(n) > 0){
+			const order = Math.floor(Math.log(Math.abs(n)) / Math.LN10 + 0.000000001);
+			return Math.pow(10,order);
+		}else{
+			return 0;
+		}
+	}
+
 	drawValues(target, chartValuesMinMax){
 
-		const totalMinMax = this.getChartMinMaxValueInRange(this.start, this.end);
+		const range = chartValuesMinMax.max - chartValuesMinMax.min;
 
 		const countValuesToDisplay = Math.floor(target.clientHeight / 60);
 
-		const coeff = target.viewBox.baseVal.height / target.clientHeight;
+		const stepNotRounded = range / countValuesToDisplay;
 
-		const totalDrawsCount = Math.floor((coeff * target.querySelector('.line-y0').getBoundingClientRect().height) / countValuesToDisplay);
+		const stepOrder = this.convert(stepNotRounded);
 
-		const valuesRange = this.totalValues;
+		const step = Math.floor(stepNotRounded / stepOrder) * stepOrder;
 
-		const displayInRangeStep = Math.floor((chartValuesMinMax.max - chartValuesMinMax.min) / countValuesToDisplay);
+		const steps = [];
 
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
+		const currentStepsClasses = [];
 
-		let stepValue = chartValuesMinMax.min + (chartHeight * 0.02);
+		const min = (chartValuesMinMax.min > step && chartValuesMinMax.min > 0) ? chartValuesMinMax.min : 0;
+
+		for (let i = 0; i <= countValuesToDisplay; i++){
+			const value = (step * i) + min;
+			steps.push(value);
+			currentStepsClasses.push(`value-${value}`);
+		}
+
+		this.layout.removeItems('value-item', currentStepsClasses, 'hide');
+
+		for (const value of steps){
+
+			const y = ((((range - (value - chartValuesMinMax.min)) / range) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
 
 
-		for (const value of valuesRange){
+			let text = target.querySelector(`.value-${value}-value`);
 
-			const y = ((((chartHeight - (value - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * (target.clientHeight / target.clientWidth);
-
-			let text = target.querySelector(`.value-${value}-text`);
-			let path = target.querySelector(`.value-${value}`);
+			let path = target.querySelector(`.value-${value}-text`);
 
 			if (path === null){
 
 				path = document.createElementNS('http://www.w3.org/2000/svg','path');
 
-				path.setAttributeNS(null, 'stroke', '#96a2aa');
+				path.setAttributeNS(null, 'stroke', '#f2f4f5');
 				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
 				path.setAttributeNS(null, 'fill', 'none');
+
+				target.querySelector('.values-wrapper').appendChild(path);
 			}
+
+			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
+			path.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-value`);
 
 			if (text === null){
 				text = document.createElementNS('http://www.w3.org/2000/svg','text');
 
-				text.innerHTML = value;
+				text.innerHTML = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 				text.setAttribute('x', 0);
-
-				text.dataset.value = value;
 				target.querySelector('.values-wrapper').appendChild(text);
 			}
-			if (value >= stepValue){
-				stepValue += displayInRangeStep;
-				text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
-				text.setAttributeNS(null, 'class', `value-${value}-text active-value`);
-				path.setAttributeNS(null, 'class', `value-${value} active-value`);
-				path.setAttributeNS(null, 'd', `M0 ${y} L ${700} ${y}`);
-				target.querySelector('.values-wrapper').appendChild(path);
-			}else{
-				if (target.querySelector(`.value-${value}`) !== null){
-					target.querySelector(`.value-${value}`).remove();
-				}
-				text.setAttributeNS(null, 'class', `value-${value}-text removing-value`);
-				path.setAttributeNS(null, 'class', `value-${value} removing-value`);
-			}
+
+			text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
+			text.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-text`);
+
+
 		}
 
 	}
@@ -293,7 +316,8 @@ class Chart {
 
 
 		if (tooltipPath === null){
-			this.layout.removeTooltips(`tooltip-${x}`);
+
+			this.layout.removeItems('tooltip-item', `tooltip-${x}`);
 
 			const monthNames = [
 				"Dec", "Jan", "Feb", "Mar",
@@ -320,7 +344,7 @@ class Chart {
 
 				let circleValue = target.querySelector(`.tooltip-value-${chartValue.y}`);
 
-				const y = ((((chartHeight - (chartValue.y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * (target.clientHeight / target.clientWidth);
+				const y = ((((chartHeight - (chartValue.y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
 
 				if (circleValue === null){
 
@@ -373,8 +397,6 @@ class Chart {
 			const left = (tooltipPath.getBoundingClientRect().left - this.layout.chartWindow.getBoundingClientRect().left) - (tooltipText.clientWidth / 2);
 			const top = (clientY - this.layout.chartWindow.getBoundingClientRect().top) - ((tooltipText.clientHeight + 15));
 
-			console.log(this.layout.chartWindow.getBoundingClientRect().top);
-
 			tooltipText.style.top = `${top}px`;
 			tooltipText.style.left = `${left}px`;
 
@@ -383,7 +405,6 @@ class Chart {
 	}
 
 	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
-
 
 		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
 		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
@@ -414,7 +435,7 @@ class Chart {
 				let y = yCoords[coordIndex];
 
 				x = (1 - ((end - x) / chartWidth)) * this.viewBoxWidth;
-				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.8)) + this.viewBoxWidth * 0.15) * aspectRatioCoeff;
+				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * aspectRatioCoeff;
 
 
 				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
@@ -436,8 +457,10 @@ class Chart {
 		}
 
 		if (drawValues){
-			this.drawDates(target, start, end);
-			this.drawValues(target, chartValuesMinMax);
+			setTimeout(() => {
+				this.drawDates(target, start, end);
+				this.drawValues(target, chartValuesMinMax);
+			}, 0);
 		}
 	}
 }
@@ -622,7 +645,7 @@ class ChartTemplate {
 		chartWindow.addEventListener('mousemove', event => this.initTooltip(event));
 		chartWindow.addEventListener('touchmove', event => this.initTooltip(event));
 
-		chartWindow.addEventListener('mouseleave', () => this.removeTooltips());
+		chartWindow.addEventListener('mouseleave', () => this.removeItems('tooltip-item'));
 
 
 		this.chart.drawLines({target: chartWindow, drawValues: true});
@@ -742,20 +765,53 @@ class ChartTemplate {
 		}
 	}
 
-	removeTooltips(drawingID = 'id-of-tooltip-to-not-remove'){
+	removeItems(removingClass, drawingID = 'id-of-item-to-not-remove', action = 'remove'){
+		return new Promise(resolve => {
+			let checkToNotRemove = [];
 
-		const tooltips = this.layout.getElementsByClassName('tooltip-item');
+			if (typeof drawingID === 'string'){
+				checkToNotRemove.push(drawingID);
+			}else if(Array.isArray(drawingID)){
+				checkToNotRemove = drawingID;
+			}else{
+				reject('Wrong value of Drawing ID');
+			}
 
-		for (const tooltip of tooltips){
-			if (!tooltip.classList.contains(drawingID)){
-				tooltip.remove();
+			let items = this.layout.getElementsByClassName(removingClass);
+
+			if (this.remove(items, checkToNotRemove, items.length, action)){
+				resolve(true);
+			}
+		});
+	}
+
+	remove(items, checkToNotRemove, countToRemove, action){
+
+		for (const item of items){
+			let found = 0;
+			for (const checkID of checkToNotRemove){
+				found += item.classList.contains(checkID) ? 1 : 0;
+			}
+			if (found === 0){
+				switch (action){
+					case 'remove':
+						item.remove();
+						break;
+					case 'hide':
+						item.classList.remove('active-item');
+						item.classList.add('removing-item');
+						break;
+				}
+				countToRemove--;
+			}else{
+				countToRemove--;
 			}
 		}
-
-		if (tooltips.length > 0){
-			return this.removeTooltips();
+		if (countToRemove !== 0){
+			return this.remove(items, checkToNotRemove, countToRemove, action);
+		}else{
+			return true;
 		}
-
 	}
 
 	getCoordsByIndex(coordIndex){
@@ -839,7 +895,7 @@ class ChartTemplate {
 
 
 		if(this.controlsState.chartMove){
-			this.removeTooltips();
+			this.removeItems('tooltip-item');
 			const startPercent = this.startChartValue;
 			const endPercent = this.endChartValue + this.endChartWidth;
 			const target = this.chartWindow;
@@ -867,7 +923,7 @@ class ChartTemplate {
 			this.moveChart(event);
 			const element = event.touches[0];
 			if (element.target !== this.chartWindow){
-				this.removeTooltips();
+				this.removeItems('tooltip-item');
 			}
 		});
 
@@ -884,4 +940,8 @@ class ChartTemplate {
 }
 
 
+new Chart(chartData[0]);
+new Chart(chartData[1]);
 new Chart(chartData[2]);
+new Chart(chartData[3]);
+new Chart(chartData[4]);

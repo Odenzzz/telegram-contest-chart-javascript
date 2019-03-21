@@ -1,8 +1,7 @@
 body{
-	background: #eee;
+	background: #fff;
 	padding: 0;
 	margin: 0;
-	// overflow: hidden;
 }
 *{
 	box-sizing: border-box;
@@ -12,14 +11,14 @@ body{
 	transform: translateZ(0);
 }
 .chart__window .dragging path{
-	transition: 0.2s ease-in-out;
+	transition: 0.08s ease-in-out;
 }
 .chart__window .dragging text{
 	transition: 0.5s ease-in-out;
 }
 .chart_wrapper{
 	position: relative;
-	margin: 0 auto;
+	margin: 30px auto 0;
 	width: 100%;
 	max-width: 700px;
 }
@@ -32,7 +31,7 @@ body{
 	height: 100px;
 	margin: 10px 0;
 	position: relative;
-	overflow: hidden;
+	// overflow: hidden;
 }
 .chart__controls{
 	position: absolute;
@@ -40,7 +39,7 @@ body{
 	height: 100%;
 	top: 0;
 	left: 0;
-	overflow: hidden;
+	// overflow: hidden;
 }
 .chart__control-start{
 	width: 10px;
@@ -100,20 +99,10 @@ text{
 	color: #96a2aa;
 	fill: #96a2aa;
 }
-.active-date{
-	opacity: 1;
+.active-item{
+	opacity: 1 !important;
 }
-.removing-date{
-	opacity: 0;
-}
-.active-value{
-	transition: 0.1s !important;
-	transition: opacity 0s !important;
-	opacity: 1;
-}
-.removing-value{
-	transition: 0.1s !important;
-	transition: opacity 0s !important;
+.removing-item{
 	opacity: 0;
 }
 
@@ -136,6 +125,8 @@ text{
 	font-size: 16px;
 	font-weight: 500;
 	color: #222222;
+	margin-right: 15px;
+	white-space: nowrap;
 }
 
 .tooltip-values-wrapper{
@@ -146,6 +137,8 @@ text{
 }
 .tooltip-value-wrapper{
 	margin: 0 15px 10px 0;
+	flex-grow: 1;
+	width: calc(50% - 15px);
 }
 .tooltip-value{
 	font-size: 17px;
@@ -155,4 +148,8 @@ text{
 .tooltip-value-name{
 	font-size: 15px;
 	display: block;
+}
+.values-wrapper path{
+	opacity: 0;
+	transition: .05s ease !important;
 }
