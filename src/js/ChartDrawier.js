@@ -1,154 +1,24 @@
-import chartData from '../data/chart_data';
-import ChartController from './ChartController';
+export default class ChartDrawier {
 
-
-class Chart1 {
-
-	constructor(data){
-
-		this.data = new ChartData(data);
-
-		this.layout = new ChartTemplate({
-			chart: this
-		});
-
-		this.layout.init();
-
-		this.displayedDates = [];
-
-		this.displayedValues = [];
-
+	constructor(){
 
 	}
 
-	getChartMinMaxValueInRange(start, end){
+	createSVGItem(target, type, settings){
 
-		let min = 99999999999999999;
-		let max = 0;
+		const item = document.createElementNS('http://www.w3.org/2000/svg', type);
 
-		if (this.data.activeLinesCount === 0){
-			// Prevent the not smooth animation on disable last chart
-			return {min: 0, max: this.viewBoxWidth};
+		for (const settingName in settings){
+			item.setAttributeNS(null, settingName, settings[settingName]);
 		}
 
-		for (let coordIndex in this.x){
-			if (this.x[coordIndex] >= start && this.x[coordIndex] <= end){
-				for (let lineIndex in this.lines){
-					const line = this.lines[lineIndex];
-					if (line.active){
-						min = line.coords[coordIndex] < min ? line.coords[coordIndex] : min;
-						max = line.coords[coordIndex] > max ? line.coords[coordIndex] : max;
-					}
-				}
-			}else{
-				for (let lineIndex in this.lines){
-					const line = this.lines[lineIndex];
-					if (line.active){
-						min = line.coords[coordIndex] < min ? line.coords[coordIndex] : min;
-					}
-				}
-			}
-		}
+		target.appendChild(item);
 
-		const range = max - min;
+		return item;
 
-		max += range * 0.05;
-
-		if (min > 0 && (min - range * 0.05) < 0){
-			min = 0;
-		}else{
-			min -= range * 0.05;
-			min = Math.floor(min / this.convert(min)) * this.convert(min);
-		}
-
-		return {min, max};
 	}
 
 
-
-
-
-	// get order of magnitude
-	getOOM(n) {
-		if (Math.abs(n) > 0){
-			const order = Math.floor(Math.log(Math.abs(n)) / Math.LN10 + 0.000000001);
-			return Math.pow(10,order);
-		}else{
-			return 0;
-		}
-	}
-
-	drawDates(target, start, end){
-
-		const monthNames = [
-			"Dec", "Jan", "Feb", "Mar",
-			"Apr", "May", "Jun", "Jul",
-			"Aug", "Sep", "Oct",
-			"Nov"
-		];
-
-
-		const range = this.x.slice();
-		const totalStartDate = range.shift();
-		const totalEndDate = range.pop();
-
-
-		if (!this.layout.controlsState.mapRangeClicked){
-
-			const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
-
-			let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.3);
-
-
-			myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
-
-			const totalDrawsCount = windowWidthDrawsCount * myltiple;
-
-			const step = Math.floor((totalEndDate - totalStartDate) / totalDrawsCount);
-
-			this.displayedDates = [];
-
-			const currentDatesClasses = [];
-
-			for (let i = 0; i <= totalDrawsCount; i++){
-				const dateValue = Math.floor((totalStartDate + (step * i)) / 86400000) * 86400000;
-				currentDatesClasses.push(`date-${dateValue}`);
-				this.displayedDates.push(dateValue);
-			}
-
-			this.displayedDates.push(Math.floor((totalEndDate) / 86400000) * 86400000);
-
-			this.layout.removeItems('date-text', currentDatesClasses, 'hide');
-
-		}
-
-
-		for (const date of this.displayedDates){
-
-			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
-
-			const shift = (1 - (totalEndDate - date) / (totalEndDate - totalStartDate));
-
-			let text = target.querySelector(`.date-${date}`);
-
-			if (text === null){
-				text = document.createElementNS('http://www.w3.org/2000/svg','text');
-
-				const dateValue = new Date(date);
-				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
-				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
-				text.setAttribute('width', `50px`);
-
-				text.dataset.date = date;
-
-				target.querySelector('.dates-wrapper').appendChild(text);
-			}
-
-			text.setAttribute('x', x - (shift * text.getBoundingClientRect().width * (this.viewBoxWidth / this.layout.chartWindow.clientWidth)));
-			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
-		}
-
-	}
 
 	drawValues(target, chartValuesMinMax){
 
@@ -197,6 +67,7 @@ class Chart1 {
 			}
 
 			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
+
 			path.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-value`);
 
 			if (text === null){
@@ -259,8 +130,6 @@ class Chart1 {
 			];
 
 			const dateValue = new Date(x);
-
-
 
 			tooltipHTML += `<span class="tooltip-date">${weekdaysNames[dateValue.getDay()]}, ${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
 			tooltipHTML += `<div class="tooltip-values-wrapper">`;
@@ -354,13 +223,11 @@ class Chart1 {
 
 	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
 
-		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
-		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
+		// let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
+		// let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
 
 
-		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
-
-		target.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth * aspectRatioCoeff}`);
+		// const aspectRatioCoeff = target.clientHeight / target.clientWidth;
 
 		// Disable zoom less than 100%
 		start = this.start > start ? this.start : start;
@@ -393,6 +260,11 @@ class Chart1 {
 			let path = target.querySelector(`.line-${lineId}`);
 
 			if (path === null){
+				const settings = {
+					'class': `line-${lineId}`,
+					'stroke': this.lines[lineId].color,
+
+				}
 				// Create the chart path if it not exists
 				path = document.createElementNS('http://www.w3.org/2000/svg','path');
 				path.setAttributeNS(null, 'class', `line-${lineId}`);
@@ -411,27 +283,6 @@ class Chart1 {
 			}, 0);
 		}
 	}
-}
-
-class Chart {
-
-	constructor(data){
-
-		this.chart = new ChartController(data);
-
-	}
 
 }
 
-
-
-// new ChartController(chartData[0]);
-new Chart(chartData[0]);
-// new Chart(chartData[1]);
-// new Chart(chartData[2]);
-// new Chart(chartData[3]);
-// new Chart(chartData[4]);
-// new Chart(chartData[1]);
-// new Chart(chartData[2]);
-// new Chart(chartData[3]);
-// new Chart(chartData[4]);

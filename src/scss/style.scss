@@ -6,7 +6,7 @@ body{
 *{
 	box-sizing: border-box;
 }
-.chart__window path, .chart__window text{
+.chart__window path, .chart__window text, .chart__map path{
 	transition: .4s ease-in-out;
 	transform: translateZ(0);
 }
