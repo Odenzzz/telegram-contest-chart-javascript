@@ -135,7 +135,8 @@ class ChartController{
 			chartReverceMove    : false,
 			startPosition       : 0,
 			endPosition         : this.viewBoxWidth,
-			clickInitialPosition: 0
+			clickInitialPosition: 0,
+			minMapViewRange     : this.data.settings.minMapSpace
 		};
 
 		this.main();
@@ -144,22 +145,32 @@ class ChartController{
 	get viewBoxWidth(){
 		return this.data.settings.viewBoxWidth;
 	}
+	get chartSizeCoeff(){
+		return this.viewBoxWidth / this.view.elements.chartWrapper.clientWidth;
+	}
+
+	get currentStart(){
+		return this.view.startChartValue;
+	}
+
+	get currentEnd(){
+		return this.view.endChartValue + this.view.endChartWidth;
+	}
 
 	getCoordsByIndex(coordIndex){
-
-		const x = this.chart.x[coordIndex];
+		const x = this.data.x[coordIndex];
 
 		const coords = {
 			x: x,
 			values: []
 		};
 
-		for (const lineId in this.chart.lines){
-			if (this.chart.lines[lineId].active){
+		for (const lineId in this.data.lines){
+			if (this.data.lines[lineId].active){
 				coords.values.push({
-					y: this.chart.lines[lineId].coords[coordIndex],
-					color: this.chart.lines[lineId].color,
-					name: this.chart.lines[lineId].name
+					y: this.data.lines[lineId].coords[coordIndex],
+					color: this.data.lines[lineId].color,
+					name: this.data.lines[lineId].name
 				});
 			}
 		}
@@ -174,23 +185,25 @@ class ChartController{
 
 	getCoordIndexByClientX(clientX){
 
-		const chartCoeff = this.chartWindow.querySelector('.chart-wrapper').getBoundingClientRect().width / this.chartWindow.clientWidth;
+		const chart = this.view.elements.chart;
+
+		const chartCoeff = chart.querySelector('.chart-wrapper').getBoundingClientRect().width / chart.clientWidth;
 
 		// get window start position inside the full chart
-		const chartStart = this.chart.viewBoxWidth * (chartCoeff * this.controlsState.startPosition / this.chart.viewBoxWidth);
+		const chartStart = this.viewBoxWidth * (chartCoeff * this.controlsState.startPosition / this.viewBoxWidth);
 
-		const chartFullWidth = this.chart.viewBoxWidth * chartCoeff;
+		const chartFullWidth = this.viewBoxWidth * chartCoeff;
 
-		const chartIntervalWidth = chartFullWidth / this.chart.x.length;
+		const chartIntervalWidth = chartFullWidth / this.data.x.length;
 
 		// get cursor position inside the full chart
-		const cursorPositionInChart = chartStart + (clientX - this.chartWindow.getBoundingClientRect().left) / this.chartWindow.clientWidth * this.chart.viewBoxWidth;
+		const cursorPositionInChart = chartStart + (clientX - chart.getBoundingClientRect().left) / chart.clientWidth * this.viewBoxWidth;
 
 		const cursorShift = (((chartFullWidth / 2) - cursorPositionInChart) / chartFullWidth) * chartIntervalWidth;
 
-		const percentCursorPositionInChart = cursorPositionInChart / this.chart.viewBoxWidth / chartCoeff;
+		const percentCursorPositionInChart = cursorPositionInChart / this.viewBoxWidth / chartCoeff;
 
-		return Math.floor(this.chart.x.length * percentCursorPositionInChart + (cursorShift / chartCoeff));
+		return Math.floor(this.data.x.length * percentCursorPositionInChart + (cursorShift / chartCoeff));
 
 	}
 
@@ -199,8 +212,8 @@ class ChartController{
 
 		this.view.init();
 
-		this.updateGraph({target: this.view.elements.chart, drawValues: true});
-		this.updateGraph({target: this.view.elements.map});
+		this.updateLines({target: this.view.elements.chart, drawValues: true});
+		this.updateLines({target: this.view.elements.map});
 
 		this.view.initControlButtons(this.data.lines);
 
@@ -245,14 +258,14 @@ class ChartController{
 					}
 				}
 
-				this.updateGraph({
+				this.updateLines({
 					target: this.view.elements.chart,
-					startPercent: this.view.startChartValue,
-					endPercent: this.view.endChartValue + this.view.endChartWidth,
+					startPercent: this.currentStart,
+					endPercent: this.currentEnd,
 					drawValues: true
 				});
 
-				this.updateGraph({
+				this.updateLines({
 					target: this.view.elements.map,
 					startPercent: 0,
 					endPercent: this.viewBoxWidth,
@@ -274,37 +287,19 @@ class ChartController{
 
 	dragStartListeners(){
 
-		// move chart by dragging chart
-		this.view.elements.chart.addEventListener('mousedown', event => {
-			this.controlsState.clickInitialPosition = event.clientX;
-			this.controlsState.mapRangeClicked      = true;
-			this.controlsState.chartMove            = true;
-			this.controlsState.chartReverceMove     = true;
-			this.controlsState.minMapViewRange      = this.viewRangeWidth;
-		});
-
-		this.view.elements.chart.addEventListener('touchstart', event => {
-			this.controlsState.clickInitialPosition = event.touches[0].clientX;
-			this.controlsState.mapRangeClicked      = true;
-			this.controlsState.chartMove            = true;
-			this.controlsState.chartReverceMove     = true;
-			this.controlsState.minMapViewRange      = this.viewRangeWidth;
-		});
-
-
 		// move chart by dragging map range
 		this.view.layoutContorls.viewRange.addEventListener('mousedown', event => {
 			this.controlsState.clickInitialPosition = event.clientX;
 			this.controlsState.mapRangeClicked      = true;
 			this.controlsState.chartMove            = true;
-			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+			this.controlsState.minMapViewRange      = this.currentEnd - this.currentStart;
 		});
 
 		this.view.layoutContorls.viewRange.addEventListener('touchstart', event => {
 			this.controlsState.clickInitialPosition = event.touches[0].clientX;
 			this.controlsState.mapRangeClicked      = true;
 			this.controlsState.chartMove            = true;
-			this.controlsState.minMapViewRange      = this.viewRangeWidth;
+			this.controlsState.minMapViewRange      = this.currentEnd - this.currentStart;
 		});
 
 
@@ -348,14 +343,10 @@ class ChartController{
 
 		document.addEventListener('touchmove', (event) => {
 			this.moveChart(event);
-			const element = event.touches[0];
-			if (element.target !== this.view.chartWindow){
-				this.view.removeItems('tooltip-item');
-			}
 		});
 
-		this.view.elements.chart.addEventListener('mousemove', event => this.initTooltip(event));
-		this.view.elements.chart.addEventListener('touchmove', event => this.initTooltip(event));
+		this.view.elements.chart.addEventListener('mousemove', event => this.updateTooltip(event));
+		this.view.elements.chart.addEventListener('touchmove', event => this.updateTooltip(event));
 
 		this.view.elements.chart.addEventListener('mouseleave', () => this.view.removeItems('tooltip-item'));
 
@@ -365,7 +356,7 @@ class ChartController{
 	clearConsrolState(){
 		this.controlsState.startPosition    = this.view.startChartValue;
 		this.controlsState.endPosition      = this.view.endChartValue;
-		this.controlsState.minMapViewRange  = this.viewBoxWidth * this.data.settings.minMapSpace;
+		this.controlsState.minMapViewRange  = this.data.settings.minMapSpace;
 		this.controlsState.startClicked     = false;
 		this.controlsState.endClicked       = false;
 		this.controlsState.chartReverceMove = false;
@@ -430,15 +421,14 @@ class ChartController{
 		return {min, max};
 	}
 
-	updateGraph({target, startPercent = 0, endPercent = this.data.settings.viewBoxWidth, drawValues = false}){
+	updateLines({target, startPercent = 0, endPercent = this.data.settings.viewBoxWidth, drawValues = false}){
 
 		let start = this.getStartAbsoluteValue(startPercent);
 		let end = this.getEndAbsoluteValue(endPercent);
 
+		// Disable zoom less than 100%
 		start = this.totalStart > start ? this.totalStart : start;
 		end = this.totalEnd < end ? this.totalEnd : end;
-
-		// Disable zoom less than 100%
 
 		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
 
@@ -455,29 +445,75 @@ class ChartController{
 		if (drawValues){
 			setTimeout(() => {
 				this.updateDates(target, start, end);
-				// this.drawValues(target, chartValuesMinMax);
+				this.updateValues(target, chartValuesMinMax);
 			}, 0);
 		}
+	}
+
+	updateValues(target, chartValuesMinMax){
+
+		const range = chartValuesMinMax.max - chartValuesMinMax.min;
+
+		const countValuesToDisplay = Math.floor(target.clientHeight / 60);
+
+		const stepNotRounded = range / countValuesToDisplay;
+
+		const stepOrder = this.getOOM(stepNotRounded);
+
+		// const step = Math.ceil(stepNotRounded / stepOrder) * stepOrder;
+		const step = Math.ceil(stepNotRounded);
+
+		const totalValues = this.data.totalValues;
+
+		const steps = [];
+
+		const currentStepsClasses = [];
+
+		const min = (chartValuesMinMax.min > step && chartValuesMinMax.min > 0) ? chartValuesMinMax.min : 0;
+
+		for (let i = 0; i <= countValuesToDisplay; i++){
+			const value = (step * i) + chartValuesMinMax.min;
+			steps.push(value);
+			currentStepsClasses.push(`value-${value}`);
+		}
+
+		this.view.removeItems('value-item', currentStepsClasses, 'hide');
+
+		this.view.createValues({
+			target,
+			steps,
+			min: chartValuesMinMax.min,
+			max: chartValuesMinMax.max
+		});
+
 	}
 
 
 	updateDates(target, start, end){
 
 		const range = this.data.x.slice();
-		const totalStartDate = range.shift();
-		const totalEndDate = range.pop();
+
+		let totalStartDate = range.shift();
+
+		let totalEndDate = range.pop();
+
+		const offset = Math.floor((totalEndDate - totalStartDate) * (this.chartSizeCoeff / 5));
+
+		totalStartDate += offset;
+
+		totalEndDate -= offset;
+
+		const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
+
+		let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.1);
+
+		myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
+
+		const totalDrawsCount = windowWidthDrawsCount * myltiple;
+
+		let step = Math.floor((totalEndDate - totalStartDate) / totalDrawsCount);
 
 		if (!this.controlsState.mapRangeClicked){
-
-			const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
-
-			let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.3);
-
-			myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
-
-			const totalDrawsCount = windowWidthDrawsCount * myltiple;
-
-			const step = Math.floor((totalEndDate - totalStartDate) / totalDrawsCount);
 
 			this.displayedDates = [];
 
@@ -489,11 +525,17 @@ class ChartController{
 				this.displayedDates.push(dateValue);
 			}
 
-			this.displayedDates.push(Math.floor((totalEndDate) / 86400000) * 86400000);
-
+			if (offset > step){
+				currentDatesClasses.push(`date-${totalStartDate - offset}`);
+				this.displayedDates.push(totalStartDate - offset);
+				currentDatesClasses.push(`date-${totalEndDate + offset}`);
+				this.displayedDates.push(totalEndDate + offset);
+			}
 			this.view.removeItems('date-text', currentDatesClasses, 'hide');
 
+
 		}
+
 
 		this.view.createDates({
 			target,
@@ -504,8 +546,31 @@ class ChartController{
 			totalEndDate
 		})
 
+	}
 
+	updateTooltip(event){
 
+		let start = this.getStartAbsoluteValue(this.currentStart);
+
+		let end = this.getEndAbsoluteValue(this.currentEnd);
+
+		const minMax = this.getChartMinMaxValueInRange(start, end);
+
+		const coordIndex = this.getCoordIndexByClientX(event.clientX || event.touches[0].clientX);
+
+		const coords = this.getCoordsByIndex(coordIndex);
+
+		if(coords){
+			this.view.createTooltip({
+				x: coords.x,
+				values: coords.values,
+				clientY: event.clientY || event.touches[0].clientY,
+				start,
+				end,
+				min: minMax.min,
+				max: minMax.max
+			});
+		}
 	}
 
 
@@ -526,30 +591,17 @@ class ChartController{
 
 		if (this.controlsState.startClicked || this.controlsState.mapRangeClicked){
 
-			let valueStart;
+			const valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.viewBoxWidth;
 
-			if (this.controlsState.chartReverceMove){
-				valueStart = this.controlsState.startPosition + ((this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.view.viewRangeWidth;
-			}else{
-				valueStart = this.controlsState.startPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.viewBoxWidth;
-			}
-
-			this.view.changeStartPosition(valueStart);
+			this.view.changeStartPosition(valueStart, this.controlsState.minMapViewRange);
 
 		}
 
 		if (this.controlsState.endClicked || this.controlsState.mapRangeClicked){
 
-			let valueEnd;
+			const valueEnd = (this.controlsState.endPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.viewBoxWidth);
 
-			if (this.controlsState.chartReverceMove){
-				valueEnd = (this.controlsState.endPosition + ((this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.view.viewRangeWidth);
-			}else{
-				valueEnd = (this.controlsState.endPosition + (0 - (this.controlsState.clickInitialPosition - clientX) / this.view.elements.layout.clientWidth) * this.viewBoxWidth);
-			}
-
-			this.view.changeEndPosition(valueEnd);
-
+			this.view.changeEndPosition(valueEnd, this.controlsState.minMapViewRange);
 		}
 
 
@@ -557,16 +609,18 @@ class ChartController{
 
 			this.view.removeItems('tooltip-item');
 
-			const startPercent = this.view.startChartValue;
+			const startPercent = this.currentStart;
 
-			const endPercent = this.view.endChartValue + this.view.endChartWidth;
+			const endPercent = this.currentEnd;
 
 			this.view.elements.chart.classList.add('dragging');
 
-			this.updateGraph({target: this.view.elements.chart, startPercent, endPercent, drawValues: true});
+			this.updateLines({target: this.view.elements.chart, startPercent, endPercent, drawValues: true});
 
 			setTimeout(() => {
+
 				this.view.elements.chart.classList.remove('dragging');
+
 			}, 0);
 		}
 	}
@@ -603,6 +657,9 @@ class ChartData {
 				// background of tooltip
 				tooltipBackground: '#253241',
 
+				// color of tooltip
+				tooltipColor: '#ffffff',
+
 				// line of selected date color
 				tooltipLineColor: '#3b4a5a',
 
@@ -627,6 +684,9 @@ class ChartData {
 
 				// background of tooltip
 				tooltipBackground: '#ffffff',
+
+				// color of tooltip
+				tooltipColor: '#222222',
 
 				// line of selected date color
 				tooltipLineColor: '#dfe6eb',
@@ -660,17 +720,31 @@ class ChartData {
 			],
 
 			// width of sliders on map (in percents)
-			mapSliderWidth: 0.02,
+			mapSliderWidth: 0.03,
+
+
+			fontSize: 13,
+
 
 			currentMode: 'day',
 
-			chartLineWidth: 0.004,
+			chartLineWidth: 3,
+
+			valueLineWidth: 1,
+
+			tooltipCircleLineWidth: 2,
+
+			tooltipOffsetFromCursor: 15,
+
+			tooltipLineWidth: 2,
+
+			tooltipCirclesRadius: 5,
 
 			// height relative to the wrapper (in percent)
 			chartHeight: 0.93,
 
 			// minimal space between start and end
-			minMapSpace: 0.15,
+			minMapSpace: 15,
 		}
 
 		this.lines = {};
@@ -749,7 +823,7 @@ class ChartData {
 		// remove all not unique values
 		this.totalValues = this.totalValues.filter((v, i, s) => s.indexOf(v) === i);
 
-		this.totalValues.sort();
+		this.totalValues.sort((a, b) => {return a - b});
 
 	}
 
@@ -785,272 +859,6 @@ class ChartDrawier {
 
 		return item;
 
-	}
-
-
-
-	drawValues(target, chartValuesMinMax){
-
-		const range = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		const countValuesToDisplay = Math.floor(target.clientHeight / 60);
-
-		const stepNotRounded = range / countValuesToDisplay;
-
-		const stepOrder = this.convert(stepNotRounded);
-
-		const step = Math.floor(stepNotRounded / stepOrder) * stepOrder;
-
-		const steps = [];
-
-		const currentStepsClasses = [];
-
-		const min = (chartValuesMinMax.min > step && chartValuesMinMax.min > 0) ? chartValuesMinMax.min : 0;
-
-		for (let i = 0; i <= countValuesToDisplay; i++){
-			const value = (step * i) + min;
-			steps.push(value);
-			currentStepsClasses.push(`value-${value}`);
-		}
-
-		this.layout.removeItems('value-item', currentStepsClasses, 'hide');
-
-		for (const value of steps){
-
-			const y = ((((range - (value - chartValuesMinMax.min)) / range) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
-
-
-			let text = target.querySelector(`.value-${value}-value`);
-
-			let path = target.querySelector(`.value-${value}-text`);
-
-			if (path === null){
-
-				path = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-				path.setAttributeNS(null, 'stroke', '#f2f4f5');
-				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
-				path.setAttributeNS(null, 'fill', 'none');
-
-				target.querySelector('.values-wrapper').appendChild(path);
-			}
-
-			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
-
-			path.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-value`);
-
-			if (text === null){
-				text = document.createElementNS('http://www.w3.org/2000/svg','text');
-
-				text.innerHTML = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-				text.setAttribute('x', 0);
-				target.querySelector('.values-wrapper').appendChild(text);
-			}
-
-			text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
-			text.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-text`);
-
-
-		}
-
-	}
-
-	drawTooltip(target, {x, values}, clientY = 0){
-
-		if (this.layout.controlsState.chartMove){
-			return;
-		}
-
-
-		let start = this.start + ((this.end - this.start) * (this.layout.startChartValue / this.viewBoxWidth));
-
-		let end = this.end - ((this.end - this.start) * (1 - ((this.layout.endChartValue + this.layout.endChartWidth) / this.viewBoxWidth)));
-
-
-		const xCoord = (1 - ((end - x) / (end - start))) * this.viewBoxWidth;
-
-
-		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
-
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		let tooltipPath = target.querySelector(`.tooltip-${x}`);
-
-		let tooltipHTML = ``;
-
-		let tooltipText = document.querySelector(`#tooltip-text-${x}`);
-
-		if (tooltipPath === null){
-
-			this.layout.removeItems('tooltip-item', `tooltip-${x}`);
-
-			const monthNames = [
-				"Dec", "Jan", "Feb", "Mar",
-				"Apr", "May", "Jun", "Jul",
-				"Aug", "Sep", "Oct",
-				"Nov"
-			];
-
-			const weekdaysNames = [
-				"Sun", "Mon",
-				"Tue", "Wed",
-				"Thu", "Fri",
-				"Sat"
-			];
-
-			const dateValue = new Date(x);
-
-			tooltipHTML += `<span class="tooltip-date">${weekdaysNames[dateValue.getDay()]}, ${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
-			tooltipHTML += `<div class="tooltip-values-wrapper">`;
-
-			for (const chartValue of values){
-
-				let circleValue = target.querySelector(`.tooltip-value-${chartValue.y}`);
-
-				const y = ((((chartHeight - (chartValue.y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
-
-				if (circleValue === null){
-
-					circleValue = document.createElementNS('http://www.w3.org/2000/svg','circle');
-
-					circleValue.setAttributeNS(null, 'stroke', chartValue.color);
-					circleValue.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.002);
-					circleValue.setAttributeNS(null, 'fill', '#fff');
-					circleValue.setAttributeNS(null, 'r', this.viewBoxWidth * 0.007);
-					circleValue.setAttributeNS(null, 'class', `tooltip-${x} tooltip-value-${chartValue.y} tooltip-item`);
-
-					target.querySelector('.tooltip-wrapper').appendChild(circleValue);
-
-				}
-
-				circleValue.setAttributeNS(null, 'cx', xCoord);
-				circleValue.setAttributeNS(null, 'cy', y);
-				tooltipHTML += `<div class="tooltip-value-wrapper" style="color: ${chartValue.color}">
-					<span class="tooltip-value">${[chartValue.y].toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}</span>
-					<span class="tooltip-value-name">${chartValue.name}</span>
-				</div>`;
-
-			}
-
-			tooltipHTML += `</div>`;
-
-			if (tooltipText === null){
-				tooltipText = document.createElement('div');
-				tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
-				tooltipText.setAttribute('id', `tooltip-text-${x}`);
-				this.layout.chartWrapper.appendChild(tooltipText);
-			}
-
-			tooltipText.innerHTML = tooltipHTML;
-
-			tooltipPath = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-			tooltipPath.setAttributeNS(null, 'stroke', '#96a2aa');
-			tooltipPath.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
-			tooltipPath.setAttributeNS(null, 'fill', 'none');
-
-			tooltipPath.setAttributeNS(null, 'class', `tooltip-${x} tooltip-item`);
-
-			tooltipPath.setAttributeNS(null, 'd', `M${xCoord} 0 L ${xCoord} ${100}`);
-
-			target.querySelector('.tooltip-wrapper').appendChild(tooltipPath);
-
-		}
-
-		const bcrChart = this.layout.chartWindow.getBoundingClientRect();
-		const bcrTooltip = tooltipText.getBoundingClientRect();
-		const bcrCurrentTooltipLine = tooltipPath.getBoundingClientRect();
-		const chartY = clientY - bcrChart.top;
-
-
-		let left = ((bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width / 2));
-		let top = chartY - (bcrTooltip.height + 15);
-
-		if (left < 0){
-			left = (bcrCurrentTooltipLine.left - bcrChart.left) + 15;
-			top = chartY - (bcrTooltip.height / 2);
-
-		}
-		if ((left + bcrTooltip.width) > bcrChart.width){
-			left = (bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width + 15);
-			top = chartY - (bcrTooltip.height / 2);
-		}
-
-		if (top < 0){
-			top = chartY + 15;
-		}
-
-		if ((top + bcrTooltip.height) > (bcrChart.height - (bcrChart.height * 0.09))){
-			top = chartY - (bcrTooltip.height + 15);
-		}
-
-		tooltipText.style.top = `${top}px`;
-		tooltipText.style.left = `${left}px`;
-
-
-	}
-
-	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
-
-		// let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
-		// let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
-
-
-		// const aspectRatioCoeff = target.clientHeight / target.clientWidth;
-
-		// Disable zoom less than 100%
-		start = this.start > start ? this.start : start;
-		end = this.end < end ? this.end : end;
-		const chartWidth = (end - start);
-
-		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		for (let lineId in this.lines){
-
-			let pathLine = '';
-
-			const yCoords = this.lines[lineId].coords;
-
-			for (let coordIndex in this.x){
-
-				coordIndex = Number(coordIndex);
-				let x = this.x[coordIndex];
-				let y = yCoords[coordIndex];
-
-				x = (1 - ((end - x) / chartWidth)) * this.viewBoxWidth;
-				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * aspectRatioCoeff;
-
-
-				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
-
-			}
-
-			let path = target.querySelector(`.line-${lineId}`);
-
-			if (path === null){
-				const settings = {
-					'class': `line-${lineId}`,
-					'stroke': this.lines[lineId].color,
-
-				}
-				// Create the chart path if it not exists
-				path = document.createElementNS('http://www.w3.org/2000/svg','path');
-				path.setAttributeNS(null, 'class', `line-${lineId}`);
-				path.setAttributeNS(null, 'stroke', this.lines[lineId].color);
-				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
-				path.setAttributeNS(null, 'fill', 'none');
-				target.querySelector('.chart-wrapper').appendChild(path);
-			}
-			path.setAttributeNS(null, 'd', pathLine);
-		}
-
-		if (drawValues){
-			setTimeout(() => {
-				this.drawDates(target, start, end);
-				this.drawValues(target, chartValuesMinMax);
-			}, 0);
-		}
 	}
 
 }
@@ -1113,6 +921,10 @@ class ChartTemplate {
 		return this.settings.viewBoxWidth / this.chartAspectRatio;
 	}
 
+	get chartSizeCoeff(){
+		return this.viewBoxWidth / this.elements.chartWrapper.clientWidth;
+	}
+
 	get currentColorScheme(){
 		const mode = this.settings.currentMode;
 		return this.settings[`${mode}Mode`];
@@ -1143,7 +955,7 @@ class ChartTemplate {
 	}
 
 	get viewRangeWidth(){
-		return (this.endChartValue - this.startChartValue) ;
+		return this.endChartValue - this.startChartValue;
 	}
 
 	get chartAspectRatio(){
@@ -1175,6 +987,8 @@ class ChartTemplate {
 
 	setCurrentColorScheme(){
 
+		document.querySelector('body').style.background = this.currentColorScheme.background;
+
 		this.elements.map.style.background = this.currentColorScheme.background;
 
 		this.elements.chart.style.background = this.currentColorScheme.background;
@@ -1202,9 +1016,10 @@ class ChartTemplate {
 		chart.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth / this.chartAspectRatio}`);
 
 		this.drawier.createSVGItem(chart, 'g', {class: 'dates-wrapper'});
-		this.drawier.createSVGItem(chart, 'g', {class: 'values-wrapper'});
+		this.drawier.createSVGItem(chart, 'g', {class: 'value-lines-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'chart-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'tooltip-wrapper'});
+		this.drawier.createSVGItem(chart, 'g', {class: 'values-wrapper'});
 
 		return chart;
 
@@ -1224,9 +1039,17 @@ class ChartTemplate {
 		this.layoutContorls.startChartSlider = this.createSlider(map);
 		this.layoutContorls.startChartSlider.setAttributeNS(null, 'x', 0);
 
+		// init start map background
+		this.layoutContorls.startMapBackground = this.createMapBackground(map);
+		this.layoutContorls.startMapBackground.setAttributeNS(null, 'x', 0);
+
 		// init end slider
 		this.layoutContorls.endChartSlider = this.createSlider(map);
 		this.layoutContorls.endChartSlider.setAttributeNS(null, 'x', this.viewBoxWidth - this.endChartWidth);
+
+		// init start map background
+		this.layoutContorls.endMapBackground = this.createMapBackground(map);
+		this.layoutContorls.endMapBackground.setAttributeNS(null, 'x', this.viewBoxWidth);
 
 		this.changeMapViewSize();
 
@@ -1268,11 +1091,10 @@ class ChartTemplate {
 			let path = target.querySelector(`.line-${lineId}`);
 
 			if (path === null){
-
 				const settings = {
 					'class': `line-${lineId}`,
 					'stroke': lines[lineId].color,
-					'stroke-width': this.viewBoxWidth * this.settings.chartLineWidth,
+					'stroke-width': this.chartSizeCoeff * this.settings.chartLineWidth,
 					'fill': 'none'
 				}
 
@@ -1289,47 +1111,192 @@ class ChartTemplate {
 
 		for (const date of dates){
 
-			const x = this.xValueToCoord(date, start, end);
-
-			// const shift = (1 - (totalEndDate - date) / (totalEndDate - totalStartDate));
+			let x = this.xValueToCoord(date, start, end);
 
 			let text = target.querySelector(`.date-${date}`);
 
 			if (text === null){
 
-				const settings = {
-					'y': this.viewBoxHeight - this.viewBoxHeight * 0.05,
-					'x': x,
-					'width': this.viewBoxWidth * 0.07,
-					'height': this.viewBoxHeight * 0.05,
-					'fill': 'none',
-					'stroke': 'none'
-				};
-
-				const wrapper = this.drawier.createSVGItem(target.querySelector('.dates-wrapper'), 'rect', settings);
-
 				const settingsText = {
-					'class': 'date-text active-item',
-					'x': 0,
-					'y': 0
+					'y': this.viewBoxHeight - this.viewBoxHeight * 0.05,
+					'font-size': this.chartSizeCoeff * this.settings.fontSize,
+					'class': `date-text date-${date} removing-item`,
+					'color': this.currentColorScheme.textColor,
+					'fill': this.currentColorScheme.textColor
 				}
 
-				const text = this.drawier.createSVGItem(wrapper, 'text', settingsText);
-
-				// text = document.createElementNS('http://www.w3.org/2000/svg','text');
+				text = this.drawier.createSVGItem(target.querySelector('.dates-wrapper'), 'text', settingsText);
 
 				const dateValue = new Date(date);
-				wrapper.innerHTML = `${this.settings.monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
+				text.innerHTML = `${this.settings.monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
 				text.setAttribute('y', this.viewBoxHeight);
-				text.setAttribute('width', `50px`);
 
-				// target.querySelector('.dates-wrapper').appendChild(text);
 			}
 
-			// text.setAttribute('x', x);
-			// text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
+			text.setAttribute('x', 0);
+			text.setAttribute('x', x - Math.floor(text.clientWidth / 2));
+			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
 		}
 
+	}
+
+	createValues({target, steps, min, max}){
+
+		for (const value of steps){
+
+			const y = this.yValueToCoord(value, min, max, target);
+
+			let text = target.querySelector(`.value-${value}-text`);
+
+			let path = target.querySelector(`.value-${value}-value`);
+
+			if (path === null){
+				const settings = {
+					'stroke': this.currentColorScheme.valueLineColor,
+					'stroke-width': this.chartSizeCoeff * this.settings.valueLineWidth,
+					'fill': 'none'
+				};
+				path = this.drawier.createSVGItem(target.querySelector('.value-lines-wrapper'), 'path', settings);
+			}
+
+			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
+			path.setAttribute('class', `value-item active-item value-${value} value-${value}-value`);
+
+			if (text === null){
+				const settings = {
+					'x': 0,
+					'font-size': this.chartSizeCoeff * this.settings.fontSize,
+					'color': this.currentColorScheme.textColor,
+					'fill': this.currentColorScheme.textColor
+				};
+				text = this.drawier.createSVGItem(target.querySelector('.values-wrapper'), 'text', settings);
+			}
+
+			text.innerHTML = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+			text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
+			text.setAttribute('class', `value-item active-item value-${value} value-${value}-text`);
+		}
+	}
+
+	createTooltip({x, values, clientY, start, end, min, max}){
+
+		const target = this.elements.chartWrapper;
+
+		const xCoord = this.xValueToCoord(x, start, end);
+
+		let tooltipPath = target.querySelector(`.tooltip-${x}`);
+
+		let tooltipHTML = ``;
+
+		let tooltipText = document.querySelector(`#tooltip-text-${x}`);
+
+
+		if (tooltipPath === null){
+
+			this.removeItems('tooltip-item', `tooltip-${x}`);
+
+			const dateValue = new Date(x);
+
+			tooltipHTML += `<span class="tooltip-date">${this.settings.weekdaysNames[dateValue.getDay()]}, ${this.settings.monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
+			tooltipHTML += `<div class="tooltip-values-wrapper">`;
+
+			for (const chartValue of values){
+
+				let circleValue = target.querySelector(`.tooltip-value-${chartValue.y}`);
+
+				const yCoord = this.yValueToCoord(chartValue.y, min, max, target);
+
+				if (circleValue === null){
+
+					const settings = {
+						'stroke'      : chartValue.color,
+						'stroke-width': this.chartSizeCoeff * this.settings.tooltipCircleLineWidth,
+						'fill'        : this.currentColorScheme.background,
+						'r'           : this.chartSizeCoeff * this.settings.tooltipCirclesRadius,
+						'class'       : `tooltip-${x} tooltip-value-${chartValue.y} tooltip-item`
+					}
+
+					circleValue = this.drawier.createSVGItem(target.querySelector('.tooltip-wrapper'), 'circle', settings);
+
+				}
+
+				circleValue.setAttributeNS(null, 'cx', xCoord);
+				circleValue.setAttributeNS(null, 'cy', yCoord);
+
+
+				tooltipHTML += `<div class="tooltip-value-wrapper" style="color: ${chartValue.color}">
+					<span class="tooltip-value">${[chartValue.y].toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}</span>
+					<span class="tooltip-value-name">${chartValue.name}</span>
+				</div>`;
+
+			}
+
+			tooltipHTML += `</div>`;
+
+			if (tooltipText === null){
+				tooltipText = document.createElement('div');
+				tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
+				tooltipText.setAttribute('id', `tooltip-text-${x}`);
+				this.elements.chartWrapper.appendChild(tooltipText);
+			}
+
+			tooltipText.innerHTML = tooltipHTML;
+			tooltipText.style.background = this.currentColorScheme.tooltipBackground;
+			tooltipText.style.color = this.currentColorScheme.tooltipColor;
+
+			const settings = {
+				'stroke': this.currentColorScheme.tooltipLineColor,
+				'stroke-width': this.chartSizeCoeff * this.settings.tooltipLineWidth,
+				'fill': 'none',
+				'class': `tooltip-${x} tooltip-item`,
+				'd': `M${xCoord} 0 L ${xCoord} ${this.viewBoxHeight}`,
+			}
+			tooltipPath = this.drawier.createSVGItem(target.querySelector('.tooltip-wrapper'), 'path', settings);
+		}
+
+		// rect of chart
+		const bcrChart = this.elements.chart.getBoundingClientRect();
+
+		// rect of tooltip (text)
+		const bcrTooltip = tooltipText.getBoundingClientRect();
+
+		// rect of tooltip (line)
+		const bcrCurrentTooltipLine = tooltipPath.getBoundingClientRect();
+
+		// get relative Y position of cursor
+		const chartY = clientY - bcrChart.top;
+
+		// tooltip on top from cursor by offset
+		let left = ((bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width / 2));
+		let top = chartY - (bcrTooltip.height + this.settings.tooltipOffsetFromCursor);
+
+		// tooltip on right from cursor by offset
+		if (left < 0){
+			left = (bcrCurrentTooltipLine.left - bcrChart.left) + this.settings.tooltipOffsetFromCursor;
+			top = chartY - (bcrTooltip.height / 2);
+
+		}
+
+		// tooltip on left from cursor by offset
+		if ((left + bcrTooltip.width) > bcrChart.width){
+			left = (bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width + this.settings.tooltipOffsetFromCursor);
+			top = chartY - (bcrTooltip.height / 2);
+		}
+
+		// tooltip on bottom from cursor by offset
+		if (top < 0){
+			top = chartY + this.settings.tooltipOffsetFromCursor;
+		}
+
+
+		// tooltip on top (right/left) from cursor by offset
+		if ((top + bcrTooltip.height) > (bcrChart.height - (bcrChart.height * (1 - this.settings.chartHeight)))){
+			top = chartY - (bcrTooltip.height + this.settings.tooltipOffsetFromCursor);
+		}
+
+
+		tooltipText.style.top = `${top}px`;
+		tooltipText.style.left = `${left}px`;
 	}
 
 
@@ -1347,13 +1314,26 @@ class ChartTemplate {
 		return chartSlider;
 	}
 
+	createMapBackground(target){
+		const settings = {
+			'y'     : 0,
+			'width' : 0,
+			'height': target.viewBox.baseVal.height,
+			'fill'  : this.currentColorScheme.mapNotVisibleBackground
+		};
+
+		const mapBackground = this.drawier.createSVGItem(target, 'rect', settings);
+
+		return mapBackground;
+	}
+
 	createMapViewRange(target){
 
 		const settings = {
 			'x'           : 0,
-			'y'           : 0 - target.viewBox.baseVal.height * (this.mapSliderWidth * 2.5),
+			'y'           : 0 - target.viewBox.baseVal.height * this.mapSliderWidth,
 			'width'       : 0,
-			'height'      : target.viewBox.baseVal.height + target.viewBox.baseVal.height * (this.mapSliderWidth * 5),
+			'height'      : target.viewBox.baseVal.height + target.viewBox.baseVal.height * (this.mapSliderWidth * 2),
 			'fill'        : 'rgba(0,0,0,0)',
 			'stroke'      : this.currentColorScheme.startEndColor,
 			'stroke-width': this.viewBoxWidth * this.mapSliderWidth
@@ -1388,9 +1368,9 @@ class ChartTemplate {
 
 	}
 
-	changeStartPosition(value){
+	changeStartPosition(value, minRangeWidth){
 
-		const maxOfStartPosition = this.endChartValue - this.viewBoxWidth * this.settings.minMapSpace;
+		const maxOfStartPosition = this.endChartValue + this.endChartWidth - minRangeWidth;
 
 		value = value > 0 ? value : 0;
 
@@ -1398,14 +1378,16 @@ class ChartTemplate {
 
 		this.startChartValue = value;
 
+		this.layoutContorls.startMapBackground.setAttributeNS(null, 'width', this.startChartValue);
+
 		this.changeMapViewSize();
 	}
 
 
 
-	changeEndPosition(value){
+	changeEndPosition(value, minRangeWidth){
 
-		const minOfEndPosition = this.startChartValue + this.viewBoxWidth * this.settings.minMapSpace;
+		const minOfEndPosition = this.startChartValue + minRangeWidth - this.endChartWidth;
 
 		value = value > minOfEndPosition ? value : minOfEndPosition;
 
@@ -1413,9 +1395,13 @@ class ChartTemplate {
 
 		this.endChartValue = value;
 
+		this.layoutContorls.endMapBackground.setAttributeNS(null, 'width', this.viewBoxWidth - this.endChartValue + this.endChartWidth);
+		this.layoutContorls.endMapBackground.setAttributeNS(null, 'x', this.endChartValue + this.endChartWidth);
+
 		this.changeMapViewSize();
 
 	}
+
 
 	changeMapViewSize(){
 
@@ -1425,19 +1411,11 @@ class ChartTemplate {
 
 		this.layoutContorls.viewRange.setAttributeNS(null, 'x', left);
 		this.layoutContorls.viewRange.setAttributeNS(null, 'width', width);
+
 	}
 
 
-	initTooltip(event){
 
-		const coordIndex = this.getCoordIndexByClientX(event.clientX);
-
-		const coords = this.getCoordsByIndex(coordIndex);
-
-		if(coords){
-			this.drawier.drawTooltip(this.chartWindow, coords, event.clientY);
-		}
-	}
 
 	removeItems(removingClass, drawingID = 'id-of-item-to-not-remove', action = 'remove'){
 
@@ -1462,7 +1440,6 @@ class ChartTemplate {
 	}
 
 	removeItem(items, checkToNotRemove, countToRemove, action){
-
 		for (const item of items){
 			let found = 0;
 			for (const checkID of checkToNotRemove){
@@ -1509,436 +1486,15 @@ var _data_chart_data__WEBPACK_IMPORTED_MODULE_0___namespace = /*#__PURE__*/__web
 
 
 
-
-class Chart1 {
-
-	constructor(data){
-
-		this.data = new ChartData(data);
-
-		this.layout = new ChartTemplate({
-			chart: this
-		});
-
-		this.layout.init();
-
-		this.displayedDates = [];
-
-		this.displayedValues = [];
-
-
-	}
-
-	getChartMinMaxValueInRange(start, end){
-
-		let min = 99999999999999999;
-		let max = 0;
-
-		if (this.data.activeLinesCount === 0){
-			// Prevent the not smooth animation on disable last chart
-			return {min: 0, max: this.viewBoxWidth};
-		}
-
-		for (let coordIndex in this.x){
-			if (this.x[coordIndex] >= start && this.x[coordIndex] <= end){
-				for (let lineIndex in this.lines){
-					const line = this.lines[lineIndex];
-					if (line.active){
-						min = line.coords[coordIndex] < min ? line.coords[coordIndex] : min;
-						max = line.coords[coordIndex] > max ? line.coords[coordIndex] : max;
-					}
-				}
-			}else{
-				for (let lineIndex in this.lines){
-					const line = this.lines[lineIndex];
-					if (line.active){
-						min = line.coords[coordIndex] < min ? line.coords[coordIndex] : min;
-					}
-				}
-			}
-		}
-
-		const range = max - min;
-
-		max += range * 0.05;
-
-		if (min > 0 && (min - range * 0.05) < 0){
-			min = 0;
-		}else{
-			min -= range * 0.05;
-			min = Math.floor(min / this.convert(min)) * this.convert(min);
-		}
-
-		return {min, max};
-	}
-
-
-
-
-
-	// get order of magnitude
-	getOOM(n) {
-		if (Math.abs(n) > 0){
-			const order = Math.floor(Math.log(Math.abs(n)) / Math.LN10 + 0.000000001);
-			return Math.pow(10,order);
-		}else{
-			return 0;
-		}
-	}
-
-	drawDates(target, start, end){
-
-		const monthNames = [
-			"Dec", "Jan", "Feb", "Mar",
-			"Apr", "May", "Jun", "Jul",
-			"Aug", "Sep", "Oct",
-			"Nov"
-		];
-
-
-		const range = this.x.slice();
-		const totalStartDate = range.shift();
-		const totalEndDate = range.pop();
-
-
-		if (!this.layout.controlsState.mapRangeClicked){
-
-			const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
-
-			let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.3);
-
-
-			myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
-
-			const totalDrawsCount = windowWidthDrawsCount * myltiple;
-
-			const step = Math.floor((totalEndDate - totalStartDate) / totalDrawsCount);
-
-			this.displayedDates = [];
-
-			const currentDatesClasses = [];
-
-			for (let i = 0; i <= totalDrawsCount; i++){
-				const dateValue = Math.floor((totalStartDate + (step * i)) / 86400000) * 86400000;
-				currentDatesClasses.push(`date-${dateValue}`);
-				this.displayedDates.push(dateValue);
-			}
-
-			this.displayedDates.push(Math.floor((totalEndDate) / 86400000) * 86400000);
-
-			this.layout.removeItems('date-text', currentDatesClasses, 'hide');
-
-		}
-
-
-		for (const date of this.displayedDates){
-
-			const x = (1 - ((end - date) / (end - start))) * this.viewBoxWidth;
-
-			const shift = (1 - (totalEndDate - date) / (totalEndDate - totalStartDate));
-
-			let text = target.querySelector(`.date-${date}`);
-
-			if (text === null){
-				text = document.createElementNS('http://www.w3.org/2000/svg','text');
-
-				const dateValue = new Date(date);
-				text.innerHTML = `${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}`;
-				text.setAttribute('y', this.viewBoxWidth * (target.clientHeight / target.clientWidth));
-				text.setAttribute('width', `50px`);
-
-				text.dataset.date = date;
-
-				target.querySelector('.dates-wrapper').appendChild(text);
-			}
-
-			text.setAttribute('x', x - (shift * text.getBoundingClientRect().width * (this.viewBoxWidth / this.layout.chartWindow.clientWidth)));
-			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
-		}
-
-	}
-
-	drawValues(target, chartValuesMinMax){
-
-		const range = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		const countValuesToDisplay = Math.floor(target.clientHeight / 60);
-
-		const stepNotRounded = range / countValuesToDisplay;
-
-		const stepOrder = this.convert(stepNotRounded);
-
-		const step = Math.floor(stepNotRounded / stepOrder) * stepOrder;
-
-		const steps = [];
-
-		const currentStepsClasses = [];
-
-		const min = (chartValuesMinMax.min > step && chartValuesMinMax.min > 0) ? chartValuesMinMax.min : 0;
-
-		for (let i = 0; i <= countValuesToDisplay; i++){
-			const value = (step * i) + min;
-			steps.push(value);
-			currentStepsClasses.push(`value-${value}`);
-		}
-
-		this.layout.removeItems('value-item', currentStepsClasses, 'hide');
-
-		for (const value of steps){
-
-			const y = ((((range - (value - chartValuesMinMax.min)) / range) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
-
-
-			let text = target.querySelector(`.value-${value}-value`);
-
-			let path = target.querySelector(`.value-${value}-text`);
-
-			if (path === null){
-
-				path = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-				path.setAttributeNS(null, 'stroke', '#f2f4f5');
-				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
-				path.setAttributeNS(null, 'fill', 'none');
-
-				target.querySelector('.values-wrapper').appendChild(path);
-			}
-
-			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
-			path.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-value`);
-
-			if (text === null){
-				text = document.createElementNS('http://www.w3.org/2000/svg','text');
-
-				text.innerHTML = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-				text.setAttribute('x', 0);
-				target.querySelector('.values-wrapper').appendChild(text);
-			}
-
-			text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
-			text.setAttributeNS(null, 'class', `value-item active-item value-${value} value-${value}-text`);
-
-
-		}
-
-	}
-
-	drawTooltip(target, {x, values}, clientY = 0){
-
-		if (this.layout.controlsState.chartMove){
-			return;
-		}
-
-
-		let start = this.start + ((this.end - this.start) * (this.layout.startChartValue / this.viewBoxWidth));
-
-		let end = this.end - ((this.end - this.start) * (1 - ((this.layout.endChartValue + this.layout.endChartWidth) / this.viewBoxWidth)));
-
-
-		const xCoord = (1 - ((end - x) / (end - start))) * this.viewBoxWidth;
-
-
-		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
-
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		let tooltipPath = target.querySelector(`.tooltip-${x}`);
-
-		let tooltipHTML = ``;
-
-		let tooltipText = document.querySelector(`#tooltip-text-${x}`);
-
-		if (tooltipPath === null){
-
-			this.layout.removeItems('tooltip-item', `tooltip-${x}`);
-
-			const monthNames = [
-				"Dec", "Jan", "Feb", "Mar",
-				"Apr", "May", "Jun", "Jul",
-				"Aug", "Sep", "Oct",
-				"Nov"
-			];
-
-			const weekdaysNames = [
-				"Sun", "Mon",
-				"Tue", "Wed",
-				"Thu", "Fri",
-				"Sat"
-			];
-
-			const dateValue = new Date(x);
-
-
-
-			tooltipHTML += `<span class="tooltip-date">${weekdaysNames[dateValue.getDay()]}, ${monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
-			tooltipHTML += `<div class="tooltip-values-wrapper">`;
-
-			for (const chartValue of values){
-
-				let circleValue = target.querySelector(`.tooltip-value-${chartValue.y}`);
-
-				const y = ((((chartHeight - (chartValue.y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * (target.clientHeight / target.clientWidth);
-
-				if (circleValue === null){
-
-					circleValue = document.createElementNS('http://www.w3.org/2000/svg','circle');
-
-					circleValue.setAttributeNS(null, 'stroke', chartValue.color);
-					circleValue.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.002);
-					circleValue.setAttributeNS(null, 'fill', '#fff');
-					circleValue.setAttributeNS(null, 'r', this.viewBoxWidth * 0.007);
-					circleValue.setAttributeNS(null, 'class', `tooltip-${x} tooltip-value-${chartValue.y} tooltip-item`);
-
-					target.querySelector('.tooltip-wrapper').appendChild(circleValue);
-
-				}
-
-				circleValue.setAttributeNS(null, 'cx', xCoord);
-				circleValue.setAttributeNS(null, 'cy', y);
-				tooltipHTML += `<div class="tooltip-value-wrapper" style="color: ${chartValue.color}">
-					<span class="tooltip-value">${[chartValue.y].toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}</span>
-					<span class="tooltip-value-name">${chartValue.name}</span>
-				</div>`;
-
-			}
-
-			tooltipHTML += `</div>`;
-
-			if (tooltipText === null){
-				tooltipText = document.createElement('div');
-				tooltipText.setAttribute('class', `tooltip-text tooltip-${x} tooltip-item`);
-				tooltipText.setAttribute('id', `tooltip-text-${x}`);
-				this.layout.chartWrapper.appendChild(tooltipText);
-			}
-
-			tooltipText.innerHTML = tooltipHTML;
-
-			tooltipPath = document.createElementNS('http://www.w3.org/2000/svg','path');
-
-			tooltipPath.setAttributeNS(null, 'stroke', '#96a2aa');
-			tooltipPath.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.001);
-			tooltipPath.setAttributeNS(null, 'fill', 'none');
-
-			tooltipPath.setAttributeNS(null, 'class', `tooltip-${x} tooltip-item`);
-
-			tooltipPath.setAttributeNS(null, 'd', `M${xCoord} 0 L ${xCoord} ${100}`);
-
-			target.querySelector('.tooltip-wrapper').appendChild(tooltipPath);
-
-		}
-
-		const bcrChart = this.layout.chartWindow.getBoundingClientRect();
-		const bcrTooltip = tooltipText.getBoundingClientRect();
-		const bcrCurrentTooltipLine = tooltipPath.getBoundingClientRect();
-		const chartY = clientY - bcrChart.top;
-
-
-		let left = ((bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width / 2));
-		let top = chartY - (bcrTooltip.height + 15);
-
-		if (left < 0){
-			left = (bcrCurrentTooltipLine.left - bcrChart.left) + 15;
-			top = chartY - (bcrTooltip.height / 2);
-
-		}
-		if ((left + bcrTooltip.width) > bcrChart.width){
-			left = (bcrCurrentTooltipLine.left - bcrChart.left) - (bcrTooltip.width + 15);
-			top = chartY - (bcrTooltip.height / 2);
-		}
-
-		if (top < 0){
-			top = chartY + 15;
-		}
-
-		if ((top + bcrTooltip.height) > (bcrChart.height - (bcrChart.height * 0.09))){
-			top = chartY - (bcrTooltip.height + 15);
-		}
-
-		tooltipText.style.top = `${top}px`;
-		tooltipText.style.left = `${left}px`;
-
-
-	}
-
-	drawLines({target, startPercent = 0, endPercent = this.viewBoxWidth, drawValues = false}){
-
-		let start = this.start + ((this.end - this.start) * (startPercent / this.viewBoxWidth));
-		let end = this.end - ((this.end - this.start) * (1 - (endPercent / this.viewBoxWidth)));
-
-
-		const aspectRatioCoeff = target.clientHeight / target.clientWidth;
-
-		target.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth * aspectRatioCoeff}`);
-
-		// Disable zoom less than 100%
-		start = this.start > start ? this.start : start;
-		end = this.end < end ? this.end : end;
-		const chartWidth = (end - start);
-
-		const chartValuesMinMax = this.getChartMinMaxValueInRange(start, end);
-		const chartHeight = chartValuesMinMax.max - chartValuesMinMax.min;
-
-		for (let lineId in this.lines){
-
-			let pathLine = '';
-
-			const yCoords = this.lines[lineId].coords;
-
-			for (let coordIndex in this.x){
-
-				coordIndex = Number(coordIndex);
-				let x = this.x[coordIndex];
-				let y = yCoords[coordIndex];
-
-				x = (1 - ((end - x) / chartWidth)) * this.viewBoxWidth;
-				y = ((((chartHeight - (y - chartValuesMinMax.min)) / chartHeight) * (this.viewBoxWidth * 0.93))) * aspectRatioCoeff;
-
-
-				pathLine += (coordIndex === 0) ? `M${x} ${y}` : ` L ${x} ${y}`;
-
-			}
-
-			let path = target.querySelector(`.line-${lineId}`);
-
-			if (path === null){
-				// Create the chart path if it not exists
-				path = document.createElementNS('http://www.w3.org/2000/svg','path');
-				path.setAttributeNS(null, 'class', `line-${lineId}`);
-				path.setAttributeNS(null, 'stroke', this.lines[lineId].color);
-				path.setAttributeNS(null, 'stroke-width', this.viewBoxWidth * 0.004);
-				path.setAttributeNS(null, 'fill', 'none');
-				target.querySelector('.chart-wrapper').appendChild(path);
-			}
-			path.setAttributeNS(null, 'd', pathLine);
-		}
-
-		if (drawValues){
-			setTimeout(() => {
-				this.drawDates(target, start, end);
-				this.drawValues(target, chartValuesMinMax);
-			}, 0);
-		}
-	}
-}
-
 class Chart {
-
 	constructor(data){
-
 		this.chart = new _ChartController__WEBPACK_IMPORTED_MODULE_1__["default"](data);
-
 	}
-
 }
 
 
 
-// new ChartController(chartData[0]);
 new Chart(_data_chart_data__WEBPACK_IMPORTED_MODULE_0__[0]);
-// new Chart(chartData[1]);
-// new Chart(chartData[2]);
-// new Chart(chartData[3]);
-// new Chart(chartData[4]);
 // new Chart(chartData[1]);
 // new Chart(chartData[2]);
 // new Chart(chartData[3]);

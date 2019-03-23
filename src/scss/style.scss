@@ -1,7 +1,8 @@
 body{
 	background: #fff;
-	padding: 0;
+	padding: 0 5px;
 	margin: 0;
+	font-family: "Roboto";
 }
 *{
 	box-sizing: border-box;
@@ -20,7 +21,7 @@ body{
 	position: relative;
 	margin: 30px auto 0;
 	width: 100%;
-	max-width: 700px;
+	max-width: 600px;
 }
 .chart__window{
 	position: relative;
@@ -93,11 +94,8 @@ svg, g{
 }
 text{
 	opacity: 0;
-	transition: 0.1s ease;
+	transition: 0.3s ease !important;
 	user-select: none;
-	font-size: 2px;
-	color: #96a2aa;
-	fill: #96a2aa;
 }
 .active-item{
 	opacity: 1 !important;
@@ -111,11 +109,9 @@ text{
 	top: 0;
 	left: 0;
 	z-index: 99;
-	background-color: #fff;
 	box-shadow: 0 0 3px rgba(0,0,0,0.25);
 	border-radius: 7px;
 	padding: 10px 0px 0px 15px;
-	font-family: "Roboto";
 	max-width: 280px;
 }
 
@@ -124,7 +120,6 @@ text{
 	margin-bottom: 10px;
 	font-size: 16px;
 	font-weight: 500;
-	color: #222222;
 	margin-right: 15px;
 	white-space: nowrap;
 }

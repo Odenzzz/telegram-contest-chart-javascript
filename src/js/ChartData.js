@@ -15,6 +15,9 @@ export default class ChartData {
 				// background of tooltip
 				tooltipBackground: '#253241',
 
+				// color of tooltip
+				tooltipColor: '#ffffff',
+
 				// line of selected date color
 				tooltipLineColor: '#3b4a5a',
 
@@ -39,6 +42,9 @@ export default class ChartData {
 
 				// background of tooltip
 				tooltipBackground: '#ffffff',
+
+				// color of tooltip
+				tooltipColor: '#222222',
 
 				// line of selected date color
 				tooltipLineColor: '#dfe6eb',
@@ -72,17 +78,31 @@ export default class ChartData {
 			],
 
 			// width of sliders on map (in percents)
-			mapSliderWidth: 0.02,
+			mapSliderWidth: 0.03,
+
+
+			fontSize: 13,
+
 
 			currentMode: 'day',
 
-			chartLineWidth: 0.004,
+			chartLineWidth: 3,
+
+			valueLineWidth: 1,
+
+			tooltipCircleLineWidth: 2,
+
+			tooltipOffsetFromCursor: 15,
+
+			tooltipLineWidth: 2,
+
+			tooltipCirclesRadius: 5,
 
 			// height relative to the wrapper (in percent)
 			chartHeight: 0.93,
 
 			// minimal space between start and end
-			minMapSpace: 0.15,
+			minMapSpace: 15,
 		}
 
 		this.lines = {};
@@ -161,7 +181,7 @@ export default class ChartData {
 		// remove all not unique values
 		this.totalValues = this.totalValues.filter((v, i, s) => s.indexOf(v) === i);
 
-		this.totalValues.sort();
+		this.totalValues.sort((a, b) => {return a - b});
 
 	}
 
