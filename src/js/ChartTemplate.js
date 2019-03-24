@@ -17,6 +17,8 @@ export default class ChartTemplate {
 		// define chart elements (like wrapper, window, map, etc...)
 		this.elements = {};
 
+		this.cache = {};
+
 	}
 
 	get chartTemplate(){
@@ -105,16 +107,6 @@ export default class ChartTemplate {
 
 	}
 
-	setCurrentColorScheme(){
-
-		document.querySelector('body').style.background = this.currentColorScheme.background;
-
-		this.elements.map.style.background = this.currentColorScheme.background;
-
-		this.elements.chart.style.background = this.currentColorScheme.background;
-
-	}
-
 	initLayout(){
 
 		const layout = document.createElement('div');
@@ -135,10 +127,10 @@ export default class ChartTemplate {
 
 		chart.setAttribute('viewBox', `0 0 ${this.viewBoxWidth} ${this.viewBoxWidth / this.chartAspectRatio}`);
 
-		this.drawier.createSVGItem(chart, 'g', {class: 'dates-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'value-lines-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'chart-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'tooltip-wrapper'});
+		this.drawier.createSVGItem(chart, 'g', {class: 'dates-wrapper'});
 		this.drawier.createSVGItem(chart, 'g', {class: 'values-wrapper'});
 
 		return chart;
@@ -177,15 +169,31 @@ export default class ChartTemplate {
 
 	}
 
-	xValueToCoord(x, start, end){
+	initControlButtons(lines){
 
-		return (1 - ((end - x) / (end - start))) * this.viewBoxWidth;
+		const buttons = [];
 
-	}
+		for (let lineID in lines){
 
-	yValueToCoord(y, min, max, target){
+			const button = document.createElement('button');
 
-		return (((max - min) - (y - min)) / (max - min)) * (this.viewBoxWidth * this.settings.chartHeight) / (target.clientWidth / target.clientHeight);
+			button.setAttribute('class', 'chart-control-button active');
+
+			button.style.color = this.currentColorScheme.tooltipColor;
+
+			button.style.borderColor = this.currentColorScheme.tooltipLineColor;
+
+			button.innerHTML = `<span style="border-color:${lines[lineID].color}"><div class="background" style="background: ${lines[lineID].color}"></div><i>✔</i></span> ${lines[lineID].name}`;
+
+			button.dataset.lineid = lineID;
+
+			this.elements.buttonsWrapper.appendChild(button);
+
+			buttons.push(button);
+
+		}
+
+		this.elements.buttons = buttons;
 
 	}
 
@@ -227,7 +235,7 @@ export default class ChartTemplate {
 		}
 	}
 
-	createDates({target, dates, start, end}){
+	createDates({target, dates, start, end, totalStartDate, totalEndDate}){
 
 		for (const date of dates){
 
@@ -253,8 +261,17 @@ export default class ChartTemplate {
 
 			}
 
+
+
 			text.setAttribute('x', 0);
-			text.setAttribute('x', x - Math.floor(text.clientWidth / 2));
+				if (date === totalStartDate){
+					x += Math.ceil(text.clientWidth * 0.1);;
+				}else if (date === totalEndDate){
+					x -= Math.ceil(text.clientWidth * 1.1);
+				}else{
+					x -= Math.floor(text.clientWidth / 2);
+				}
+			text.setAttribute('x', x);
 			text.setAttributeNS(null, 'class', `date-${date} date-text active-item`);
 		}
 
@@ -264,7 +281,15 @@ export default class ChartTemplate {
 
 		for (const value of steps){
 
+			let yOld;
+
 			const y = this.yValueToCoord(value, min, max, target);
+
+			if (this.cache.oldMin !== undefined){
+				yOld = this.yValueToCoord(value, this.cache.oldMin, this.cache.oldMax, target);
+			}else{
+				yOld = y;
+			}
 
 			let text = target.querySelector(`.value-${value}-text`);
 
@@ -274,28 +299,56 @@ export default class ChartTemplate {
 				const settings = {
 					'stroke': this.currentColorScheme.valueLineColor,
 					'stroke-width': this.chartSizeCoeff * this.settings.valueLineWidth,
-					'fill': 'none'
+					'fill': 'none',
+					'class': 'removing-item',
+					'd': `M${0} ${yOld} L ${this.viewBoxWidth} ${yOld}`
 				};
 				path = this.drawier.createSVGItem(target.querySelector('.value-lines-wrapper'), 'path', settings);
 			}
 
-			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
 			path.setAttribute('class', `value-item active-item value-${value} value-${value}-value`);
+			path.setAttributeNS(null, 'd', `M${0} ${y} L ${this.viewBoxWidth} ${y}`);
 
 			if (text === null){
 				const settings = {
 					'x': 0,
 					'font-size': this.chartSizeCoeff * this.settings.fontSize,
 					'color': this.currentColorScheme.textColor,
-					'fill': this.currentColorScheme.textColor
+					'fill': this.currentColorScheme.textColor,
+					'class': 'removing-item',
+					'y': yOld
 				};
 				text = this.drawier.createSVGItem(target.querySelector('.values-wrapper'), 'text', settings);
 			}
 
-			text.innerHTML = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-			text.setAttribute('y', (y - target.viewBox.baseVal.height * 0.01));
+			text.dataset.y = value;
+
+			path.dataset.y = value;
+
+			text.innerHTML = this.numberFormat(value);
+
 			text.setAttribute('class', `value-item active-item value-${value} value-${value}-text`);
+
+			let currentY = Number(text.getAttribute('y'));
+
+			const targetY = y - target.viewBox.baseVal.height * 0.01;
+
+			if (currentY !== null){
+				if (currentY !== targetY){
+					let time = 400;
+					if (target.classList.contains('dragging')){
+						time = 100;
+					}
+					this.drawier.animateItem(text, 'y', currentY, targetY, time);
+				}else{
+					text.setAttribute('y', targetY);
+				}
+			}else{
+				text.setAttribute('y', targetY);
+			}
 		}
+		this.cache.oldMin = min;
+		this.cache.oldMax = max;
 	}
 
 	createTooltip({x, values, clientY, start, end, min, max}){
@@ -310,12 +363,20 @@ export default class ChartTemplate {
 
 		let tooltipText = document.querySelector(`#tooltip-text-${x}`);
 
-
 		if (tooltipPath === null){
 
 			this.removeItems('tooltip-item', `tooltip-${x}`);
 
 			const dateValue = new Date(x);
+
+			const settings = {
+				'stroke': this.currentColorScheme.tooltipLineColor,
+				'stroke-width': this.chartSizeCoeff * this.settings.tooltipLineWidth,
+				'fill': 'none',
+				'class': `tooltip-${x} tooltip-item`,
+				'd': `M${xCoord} 0 L ${xCoord} ${this.viewBoxHeight}`,
+			}
+			tooltipPath = this.drawier.createSVGItem(target.querySelector('.tooltip-wrapper'), 'path', settings);
 
 			tooltipHTML += `<span class="tooltip-date">${this.settings.weekdaysNames[dateValue.getDay()]}, ${this.settings.monthNames[dateValue.getMonth()]} ${dateValue.getDate()}</span>`;
 			tooltipHTML += `<div class="tooltip-values-wrapper">`;
@@ -345,13 +406,15 @@ export default class ChartTemplate {
 
 
 				tooltipHTML += `<div class="tooltip-value-wrapper" style="color: ${chartValue.color}">
-					<span class="tooltip-value">${[chartValue.y].toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")}</span>
+					<span class="tooltip-value">${this.numberFormat([chartValue.y])}</span>
 					<span class="tooltip-value-name">${chartValue.name}</span>
 				</div>`;
 
 			}
 
 			tooltipHTML += `</div>`;
+
+
 
 			if (tooltipText === null){
 				tooltipText = document.createElement('div');
@@ -364,14 +427,6 @@ export default class ChartTemplate {
 			tooltipText.style.background = this.currentColorScheme.tooltipBackground;
 			tooltipText.style.color = this.currentColorScheme.tooltipColor;
 
-			const settings = {
-				'stroke': this.currentColorScheme.tooltipLineColor,
-				'stroke-width': this.chartSizeCoeff * this.settings.tooltipLineWidth,
-				'fill': 'none',
-				'class': `tooltip-${x} tooltip-item`,
-				'd': `M${xCoord} 0 L ${xCoord} ${this.viewBoxHeight}`,
-			}
-			tooltipPath = this.drawier.createSVGItem(target.querySelector('.tooltip-wrapper'), 'path', settings);
 		}
 
 		// rect of chart
@@ -464,27 +519,44 @@ export default class ChartTemplate {
 		return viewRange;
 	}
 
-	initControlButtons(lines){
+	setCurrentColorScheme(){
 
-		const buttons = [];
+		this.elements.layout.classList.add('scheme-change');
 
-		for (let lineID in lines){
+		document.querySelector('body').style.background = this.currentColorScheme.background;
 
-			const button = document.createElement('button');
+		this.elements.map.style.background = this.currentColorScheme.background;
 
-			button.style.background = lines[lineID].color;
+		this.elements.chart.style.background = this.currentColorScheme.background;
 
-			button.innerHTML = lines[lineID].name;
+		this.layoutContorls.viewRange.setAttributeNS(null, 'stroke', this.currentColorScheme.startEndColor);
 
-			button.dataset.lineid = lineID;
+		this.layoutContorls.endMapBackground.setAttributeNS(null, 'fill', this.currentColorScheme.mapNotVisibleBackground);
 
-			this.elements.buttonsWrapper.appendChild(button);
+		this.layoutContorls.startMapBackground.setAttributeNS(null, 'fill', this.currentColorScheme.mapNotVisibleBackground);
 
-			buttons.push(button);
-
+		if (this.elements.buttons){
+			for (const button of this.elements.buttons){
+				button.style.color = this.currentColorScheme.tooltipColor;
+				button.style.borderColor = this.currentColorScheme.tooltipLineColor;
+			}
 		}
 
-		this.elements.buttons = buttons;
+
+		const texts = [...this.elements.layout.querySelector('.dates-wrapper').querySelectorAll('text'), ...this.elements.layout.querySelector('.values-wrapper').querySelectorAll('text')];
+
+		for (const text of texts){
+			text.setAttributeNS(null, 'color', this.currentColorScheme.textColor);
+			text.setAttributeNS(null, 'fill', this.currentColorScheme.textColor);
+		}
+
+		const lines = this.elements.layout.querySelector('.value-lines-wrapper').querySelectorAll('path');
+
+		for (const line of lines){
+			line.setAttributeNS(null, 'stroke', this.currentColorScheme.valueLineColor);
+		}
+
+		setTimeout(() => this.elements.layout.classList.remove('scheme-change'), 0);
 
 	}
 
@@ -535,9 +607,18 @@ export default class ChartTemplate {
 	}
 
 
+	addNoDataPlaceholder(){
+		let placeholder = this.elements.layout.querySelector('.no-data-placeholder');
+		if (placeholder === null){
+			placeholder = document.createElement('div');
+			placeholder.setAttribute('class', 'no-data-placeholder');
+			placeholder.innerHTML = '<h2>No data to display!</h2>';
+			placeholder.style.color = this.currentColorScheme.textColor;
+			this.elements.layout.querySelector('.chart__window').appendChild(placeholder);
+		}
+	}
 
-
-	removeItems(removingClass, drawingID = 'id-of-item-to-not-remove', action = 'remove'){
+	removeItems(removingClass, drawingID = 'id-of-item-to-not-remove', action = 'remove', settings = {}){
 
 		let checkToNotRemove = [];
 
@@ -551,7 +632,7 @@ export default class ChartTemplate {
 
 		let items = this.elements.layout.getElementsByClassName(removingClass);
 
-		if (this.removeItem(items, checkToNotRemove, items.length, action)){
+		if (this.removeItem(items, checkToNotRemove, items.length, action, settings)){
 			return true;
 		}else{
 			return false;
@@ -559,7 +640,7 @@ export default class ChartTemplate {
 
 	}
 
-	removeItem(items, checkToNotRemove, countToRemove, action){
+	removeItem(items, checkToNotRemove, countToRemove, action, settings = {}){
 		for (const item of items){
 			let found = 0;
 			for (const checkID of checkToNotRemove){
@@ -574,6 +655,18 @@ export default class ChartTemplate {
 						item.classList.remove('active-item');
 						item.classList.add('removing-item');
 						break;
+					case 'hideByY':
+						const y = this.yValueToCoord(Number(item.dataset.y), settings.min, settings.max, this.elements.chart);
+						const yOld = this.yValueToCoord(Number(item.dataset.y), this.cache.oldMin, this.cache.oldMax, this.elements.chart);
+
+						let time = 400;
+						if (this.elements.chart.classList.contains('dragging')){
+							time = 100;
+						}
+						this.drawier.animateItem(item, 'y', yOld, y, time);
+						item.classList.add('removing-item');
+						// item.classList.remove('active-item');
+						break;
 				}
 				countToRemove--;
 			}else{
@@ -581,10 +674,40 @@ export default class ChartTemplate {
 			}
 		}
 		if (countToRemove !== 0){
-			return this.removeItem(items, checkToNotRemove, countToRemove, action);
+			return this.removeItem(items, checkToNotRemove, countToRemove, action, settings);
 		}else{
 			return true;
 		}
+	}
+
+	numberFormat(value) {
+		const fixed = this.settings.decimalsInThousandRounding;
+		// Nine Zeroes for Billions
+		return Math.abs(Number(value)) >= 1.0e+9
+
+		? parseFloat(Number(Math.abs(Number(value)) / 1.0e+9).toFixed(fixed)) + "B"
+		// Six Zeroes for Millions
+		: Math.abs(Number(value)) >= 1.0e+6
+
+		? parseFloat(Number(Math.abs(Number(value)) / 1.0e+6).toFixed(fixed)) + "M"
+		// Three Zeroes for Thousands
+		: Math.abs(Number(value)) >= 1.0e+3
+
+		? parseFloat(Number(Math.abs(Number(value)) / 1.0e+3).toFixed(fixed)) + "K"
+
+		: Math.abs(Number(value));
+	}
+
+	xValueToCoord(x, start, end){
+
+		return (1 - ((end - x) / (end - start))) * this.viewBoxWidth;
+
+	}
+
+	yValueToCoord(y, min, max, target){
+
+		return (((max - min) - (y - min)) / (max - min)) * (this.viewBoxWidth * this.settings.chartHeight) / (target.clientWidth / target.clientHeight);
+
 	}
 
 }

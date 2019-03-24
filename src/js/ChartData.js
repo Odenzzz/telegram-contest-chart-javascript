@@ -80,9 +80,9 @@ export default class ChartData {
 			// width of sliders on map (in percents)
 			mapSliderWidth: 0.03,
 
+			decimalsInThousandRounding: 2,
 
 			fontSize: 13,
-
 
 			currentMode: 'day',
 
