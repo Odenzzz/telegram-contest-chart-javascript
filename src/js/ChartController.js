@@ -69,7 +69,7 @@ export default class ChartController{
 
 		const chartValuesMinMax = this.getChartMinMaxValueInRange(this.getStartAbsoluteValue(this.currentStart), this.getEndAbsoluteValue(this.currentEnd));
 
-		const countValuesToDisplay = Math.floor(this.view.elements.chart.clientHeight / 60);
+		const countValuesToDisplay = Math.floor(this.view.elements.chartWrapper.clientHeight / 60);
 
 		let range = chartValuesMinMax.max - this.absoluteMinMax.min;
 
@@ -162,7 +162,7 @@ export default class ChartController{
 
 	getCoordIndexByClientX(clientX){
 
-		const chart = this.view.elements.chart;
+		const chart = this.view.elements.chartWrapper;
 
 		const chartCoeff = chart.querySelector('.chart-wrapper').getBoundingClientRect().width / chart.clientWidth;
 
@@ -323,7 +323,9 @@ export default class ChartController{
 
 			const windowWidthDrawsCount = Math.floor((target.getBoundingClientRect().width) / 80);
 
-			let myltiple = Math.floor((target.querySelector('.chart-wrapper').getBoundingClientRect().width / target.getBoundingClientRect().width) * 1.1);
+			const wrapperWidth = target.querySelector('.chart-wrapper').getBoundingClientRect().width > 0 ? target.querySelector('.chart-wrapper').getBoundingClientRect().width : this.view.elements.chartWrapper.clientWidth;
+
+			let myltiple = Math.floor((wrapperWidth / target.getBoundingClientRect().width) * 1.1);
 
 			myltiple = Math.pow(2, Math.floor(Math.log2(myltiple)));
 

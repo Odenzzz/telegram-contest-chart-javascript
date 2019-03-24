@@ -706,7 +706,7 @@ export default class ChartTemplate {
 
 	yValueToCoord(y, min, max, target){
 
-		return (((max - min) - (y - min)) / (max - min)) * (this.viewBoxWidth * this.settings.chartHeight) / (target.clientWidth / target.clientHeight);
+		return (((max - min) - (y - min)) / (max - min)) * (this.viewBoxWidth * this.settings.chartHeight) / (target.getBoundingClientRect().width / target.getBoundingClientRect().height);
 
 	}
 

@@ -10,7 +10,7 @@ module.exports = {
 		path: path.resolve(__dirname, 'dist'),
 		filename: "./js/bundle.js"
 	},
-	// devtool: "source-map",
+	devtool: "source-map",
 	mode: "development",
 	module: {
 		rules: [{
@@ -49,7 +49,7 @@ module.exports = {
 					{
 						loader: "sass-loader",
 						options: {
-							// sourceMap: false
+							sourceMap: false
 						}
 					}
 				]

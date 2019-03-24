@@ -9,34 +9,30 @@ body{
 	box-sizing: border-box;
 }
 
-.chart-wrapper path{
-	transition: .4s ease-in-out;
-	transform: translateZ(0);
+
+
+.value-lines-wrapper{
+	path{
+		transition: .4s linear;
+		transform: translateZ(0);
+	}
 }
-.dragging .chart-wrapper path{
-	transition: .1s ease-in-out;
-}
-.value-lines-wrapper path{
-	transition: .4s linear;
-	transform: translateZ(0);
-}
-.dragging .value-lines-wrapper path{
-	transition: .1s linear;
-}
+
 .dates-wrapper text, .values-wrapper text{
 	transition: opacity .4s ease-in-out;
 	transform: translateZ(0);
 }
 
-.scheme-change path {
-	transition: 0s !important;
-}
 
 .chart_wrapper{
 	position: relative;
 	margin: 30px auto 0;
 	width: 100%;
 	max-width: 600px;
+	path{
+		transition: .4s ease-in-out;
+		transform: translateZ(0);
+	}
 }
 .chart__window{
 	position: relative;
@@ -50,9 +46,23 @@ body{
 }
 
 
-
-
-
+.dragging {
+	.chart-wrapper {
+		path{
+			transition: .1s ease-in-out;
+		}
+	}
+	.value-lines-wrapper {
+		path{
+			transition: .1s linear;
+		}
+	}
+}
+.scheme-change {
+	path {
+		transition: 0s !important;
+	}
+}
 
 
 // right
