@@ -36,4 +36,19 @@ getJSON('data/chart_data.json').then((data) => {
 	for (const dataOfChart of data){
 		charts.push(new Chart(dataOfChart));
 	}
+}).catch( (error) => {
+	if (error.value !== undefined && error.value === 'load from file'){
+		const script = document.createElement('script');
+		script.setAttribute('src', error.file);
+		document.querySelector('body').appendChild(script);
+		const interval = setInterval(() => {
+			if (chartData){
+				clearInterval(interval);
+				for (const dataOfChart of chartData){
+					charts.push(new Chart(dataOfChart));
+				}
+			}
+		}, 1);
+
+	}
 });

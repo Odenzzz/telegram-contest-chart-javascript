@@ -4,6 +4,10 @@ export const getJSON = function(url) {
 
 		const request = new XMLHttpRequest();
 
+		request.onerror = () => {
+			reject({value: `load from file`, file: 'data/chart_data.js'});
+		};
+
 		request.open('GET', url, true);
 
 		request.onload = function () {

@@ -462,12 +462,14 @@ export default class ChartController{
 
 				if (this.data.lines[lineID].active){
 					button.classList.remove('active');
+					this.view.removeItems('tooltip-item');
 					this.data.lines[lineID].active = false;
 					for (const line of lines){
 						line.style.opacity = 0;
 					}
 				}else{
 					button.classList.add('active');
+					this.view.removeItems('tooltip-item');
 					this.data.lines[lineID].active = true;
 					for (const line of lines){
 						line.style.opacity = 1;
